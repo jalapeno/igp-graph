@@ -175,7 +175,7 @@ func (a *arangoDB) lsPrefixHandler(obj *kafkanotifier.EventMessage) error {
 	//glog.V(5).Infof("Complete processing action: %s for key: %s ID: %s", obj.Action, obj.Key, obj.ID)
 
 	// write event into ls_topoogy_v4 topic
-	a.notifier.EventNotification(obj)
+	//a.notifier.EventNotification(obj)
 
 	return nil
 }
