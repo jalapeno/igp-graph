@@ -349,7 +349,7 @@ func (a *arangoDB) loadCollection() error {
 		}
 	}
 
-	// add ipv6 iBGP peering address
+	// add ipv6 iBGP peering address and ipv4 bgp router-id
 	ibgp6_query := "for s in peer filter s.remote_ip like " + "\"%:%\"" + " return s "
 	cursor, err = a.db.Query(ctx, ibgp6_query, nil)
 	if err != nil {
@@ -364,7 +364,7 @@ func (a *arangoDB) loadCollection() error {
 		} else if err != nil {
 			return err
 		}
-		if err := a.processibgp6(ctx, meta.Key, meta.ID.String(), &p); err != nil {
+		if err := a.processbgp6(ctx, meta.Key, meta.ID.String(), &p); err != nil {
 			glog.Errorf("Failed to process ibgp peering %s with error: %+v", p.ID, err)
 		}
 	}

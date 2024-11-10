@@ -232,9 +232,43 @@ func (a *arangoDB) dedupeLSNodeExt() error {
 	return nil
 }
 
-func (a *arangoDB) processibgp6(ctx context.Context, key, id string, e *message.PeerStateChange) error {
+// func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.PeerStateChange) error {
+// 	query := "for l in  " + a.lsnodeExt.Name() +
+// 		" filter l.router_id == " + "\"" + e.RemoteBGPID + "\""
+// 	query += " return l"
+// 	pcursor, err := a.db.Query(ctx, query, nil)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer pcursor.Close()
+// 	for {
+// 		var ln LSNodeExt
+// 		nl, err := pcursor.ReadDocument(ctx, &ln)
+// 		if err != nil {
+// 			if !driver.IsNoMoreDocuments(err) {
+// 				return err
+// 			}
+// 			break
+// 		}
+// 		glog.Infof("ls_node_extended: %s + peer %v +  ", ln.Key, e.RemoteBGPID)
+
+// 		obj := peerObject{
+// 			BGPRouterID: e.RemoteIP,
+// 		}
+
+// 		if _, err := a.lsnodeExt.UpdateDocument(ctx, nl.Key, &obj); err != nil {
+// 			if !driver.IsConflict(err) {
+// 				return err
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
+
+// Nov 10 2024 - find ipv6 lsnode's ipv4 bgp router-id
+func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.PeerStateChange) error {
 	query := "for l in  " + a.lsnodeExt.Name() +
-		" filter l.router_id == " + "\"" + e.RemoteBGPID + "\""
+		" filter l.router_id == " + "\"" + e.RemoteIP + "\""
 	query += " return l"
 	pcursor, err := a.db.Query(ctx, query, nil)
 	if err != nil {
@@ -250,10 +284,10 @@ func (a *arangoDB) processibgp6(ctx context.Context, key, id string, e *message.
 			}
 			break
 		}
-		glog.V(6).Infof("ls_node_extended: %s + peer %v +  ", ln.Key, e.RemoteBGPID)
+		glog.Infof("ls_node_extended: %s + peer %v +  ", ln.Key, e.RemoteBGPID)
 
 		obj := peerObject{
-			BGPRouterID: e.RemoteIP,
+			BGPRouterID: e.RemoteBGPID,
 		}
 
 		if _, err := a.lsnodeExt.UpdateDocument(ctx, nl.Key, &obj); err != nil {

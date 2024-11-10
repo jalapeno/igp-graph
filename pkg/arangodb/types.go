@@ -69,7 +69,7 @@ type SID struct {
 }
 
 type peerObject struct {
-	BGPRouterID string `json:"router_id_v6,omitempty"`
+	BGPRouterID string `json:"bgp_router_id,omitempty"`
 }
 
 type lsTopologyObject struct {
