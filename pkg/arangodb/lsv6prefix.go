@@ -11,53 +11,7 @@ import (
 	"github.com/sbezverk/gobmp/pkg/message"
 )
 
-// func (a *arangoDB) lsprefixHandler(obj *kafkanotifier.EventMessage) error {
-// 	ctx := context.TODO()
-// 	if obj == nil {
-// 		return fmt.Errorf("event message is nil")
-// 	}
-// 	// Check if Collection encoded in ID exists
-// 	c := strings.Split(obj.ID, "/")[0]
-// 	if strings.Compare(c, a.lsprefix.Name()) != 0 {
-// 		return fmt.Errorf("configured collection name %s and received in event collection name %s do not match", a.lsprefix.Name(), c)
-// 	}
-// 	//glog.V(5).Infof("Processing action: %s for key: %s ID: %s", obj.Action, obj.Key, obj.ID)
-// 	var o message.LSPrefix
-// 	_, err := a.lsprefix.ReadDocument(ctx, obj.Key, &o)
-// 	if err != nil {
-// 		// In case of a ls_link removal notification, reading it will return Not Found error
-// 		if !driver.IsNotFound(err) {
-// 			return fmt.Errorf("failed to read existing document %s with error: %+v", obj.Key, err)
-// 		}
-// 		// If operation matches to "del" then it is confirmed delete operation, otherwise return error
-// 		if obj.Action != "del" {
-// 			return fmt.Errorf("document %s not found but Action is not \"del\", possible stale event", obj.Key)
-// 		}
-// 		err := a.processv6PrefixRemoval(ctx, obj.Key, obj.Action)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		// write event into ls_node_edge topic
-// 		a.notifier.EventNotification(obj)
-// 		return nil
-// 	}
-// 	switch obj.Action {
-// 	case "add":
-// 		fallthrough
-// 	case "update":
-// 		if err := a.processLSv6PrefixEdge(ctx, obj.Key, &o); err != nil {
-// 			return fmt.Errorf("failed to process action %s for edge %s with error: %+v", obj.Action, obj.Key, err)
-// 		}
-// 	}
-// 	//glog.V(5).Infof("Complete processing action: %s for key: %s ID: %s", obj.Action, obj.Key, obj.ID)
-
-// 	// write event into ls_topoogy_v4 topic
-// 	a.notifier.EventNotification(obj)
-
-// 	return nil
-// }
-
-// processEdge processes a single ls_link connection which is a unidirectional edge between two nodes (vertices).
+// processEdge processes a single ipv6 ls_prefix entry which is connected to a node
 func (a *arangoDB) processLSv6PrefixEdge(ctx context.Context, key string, p *message.LSPrefix) error {
 	//glog.V(9).Infof("processEdge processing lsprefix: %s", l.ID)
 
@@ -82,7 +36,6 @@ func (a *arangoDB) processLSv6PrefixEdge(ctx context.Context, key string, p *mes
 }
 
 // processEdgeRemoval removes a record from Node's graph collection
-// since the key matches in both collections (LS Links and Nodes' Graph) deleting the record directly.
 func (a *arangoDB) processv6PrefixRemoval(ctx context.Context, key string, action string) error {
 	if _, err := a.graphv6.RemoveDocument(ctx, key); err != nil {
 		glog.Infof("removing edge %s", key)
@@ -96,7 +49,7 @@ func (a *arangoDB) processv6PrefixRemoval(ctx context.Context, key string, actio
 }
 
 func (a *arangoDB) getLSv6Node(ctx context.Context, p *message.LSPrefix, local bool) (*message.LSNode, error) {
-	// Need to find ls_node object matching ls_link's IGP Router ID
+	// Need to find ls_node object matching ls_prefix's IGP Router ID
 	query := "FOR d IN ls_node_extended" //+ a.lsnodeExt.Name()
 	query += " filter d.igp_router_id == " + "\"" + p.IGPRouterID + "\""
 	query += " filter d.domain_id == " + strconv.Itoa(int(p.DomainID))

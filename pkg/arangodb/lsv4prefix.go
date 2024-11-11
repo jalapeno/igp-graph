@@ -11,7 +11,7 @@ import (
 	"github.com/sbezverk/gobmp/pkg/message"
 )
 
-// processEdge processes a single ls_link connection which is a unidirectional edge between two nodes (vertices).
+// processLSPrefixEdge processes a single ls_prefix entry which is connected to a node
 func (a *arangoDB) processLSPrefixEdge(ctx context.Context, key string, p *message.LSPrefix) error {
 	//glog.V(9).Infof("processEdge processing lsprefix: %s", l.ID)
 
@@ -39,7 +39,6 @@ func (a *arangoDB) processLSPrefixEdge(ctx context.Context, key string, p *messa
 }
 
 // processPrefixRemoval removes a record from Node's graph collection
-// since the key matches in both collections (LS Links and Nodes' Graph) deleting the record directly.
 func (a *arangoDB) processPrefixRemoval(ctx context.Context, key string, action string) error {
 	if _, err := a.graphv4.RemoveDocument(ctx, key); err != nil {
 		if !driver.IsNotFound(err) {
@@ -52,7 +51,7 @@ func (a *arangoDB) processPrefixRemoval(ctx context.Context, key string, action 
 }
 
 func (a *arangoDB) getLSv4Node(ctx context.Context, p *message.LSPrefix, local bool) (*message.LSNode, error) {
-	// Need to find ls_node object matching ls_link's IGP Router ID
+	// Need to find ls_node object matching ls_prefix's IGP Router ID
 	query := "FOR d IN " + a.lsnodeExt.Name()
 	query += " filter d.igp_router_id == " + "\"" + p.IGPRouterID + "\""
 	query += " filter d.domain_id == " + strconv.Itoa(int(p.DomainID))
