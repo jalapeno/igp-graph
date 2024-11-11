@@ -14,7 +14,6 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 	query := "for l in " + a.lsnodeExt.Name() +
 		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\"" +
 		" filter l.domain_id == " + strconv.Itoa(int(e.DomainID))
-	//" filter l.domain_id == " + "\"" + strconv.Itoa(int(e.DomainID)) + "\""
 	query += " return l"
 	ncursor, err := a.db.Query(ctx, query, nil)
 	if err != nil {
@@ -48,9 +47,6 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 		glog.Infof("sid %+v exists in ls_node_extended document", e.SRv6SID)
 	} else {
 
-		// srn := LSNodeExt{
-		// 	SIDS: append(sids, newsid),
-		// }
 		sn.SIDS = append(sn.SIDS, newsid)
 		srn := LSNodeExt{
 			SIDS: sn.SIDS,
@@ -146,7 +142,6 @@ func (a *arangoDB) processLSNodeExt(ctx context.Context, key string, e *message.
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -211,7 +206,6 @@ func (a *arangoDB) dedupeLSNodeExt() error {
 
 		if doc.ProtocolID == 1 {
 			glog.Infof("remove level-1 duplicate node: %s + igp id: %s protocol id: %v +  ", doc.Key, doc.IGPRouterID, doc.ProtocolID)
-			//glog.Infof("remove level-1 duplicate node: %s + igp id: %s area id: %s protocol id: %v +  ", doc.Key, doc.IGPRouterID, doc.AreaID, doc.ProtocolID)
 			if _, err := a.lsnodeExt.RemoveDocument(ctx, doc.Key); err != nil {
 				if !driver.IsConflict(err) {
 					return err
@@ -231,39 +225,6 @@ func (a *arangoDB) dedupeLSNodeExt() error {
 	}
 	return nil
 }
-
-// func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.PeerStateChange) error {
-// 	query := "for l in  " + a.lsnodeExt.Name() +
-// 		" filter l.router_id == " + "\"" + e.RemoteBGPID + "\""
-// 	query += " return l"
-// 	pcursor, err := a.db.Query(ctx, query, nil)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer pcursor.Close()
-// 	for {
-// 		var ln LSNodeExt
-// 		nl, err := pcursor.ReadDocument(ctx, &ln)
-// 		if err != nil {
-// 			if !driver.IsNoMoreDocuments(err) {
-// 				return err
-// 			}
-// 			break
-// 		}
-// 		glog.Infof("ls_node_extended: %s + peer %v +  ", ln.Key, e.RemoteBGPID)
-
-// 		obj := peerObject{
-// 			BGPRouterID: e.RemoteIP,
-// 		}
-
-// 		if _, err := a.lsnodeExt.UpdateDocument(ctx, nl.Key, &obj); err != nil {
-// 			if !driver.IsConflict(err) {
-// 				return err
-// 			}
-// 		}
-// 	}
-// 	return nil
-// }
 
 // Nov 10 2024 - find ipv6 lsnode's ipv4 bgp router-id
 func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.PeerStateChange) error {
@@ -353,7 +314,7 @@ func (a *arangoDB) processIgpDomain(ctx context.Context, key string, e *message.
 	}
 
 	if _, err := a.igpDomain.CreateDocument(ctx, &sn); err != nil {
-		glog.Infof("adding igp_domain: %s with area_id %s ", sn.Key, e.ASN)
+		glog.Infof("adding igp_domain: %s with area_id %v ", sn.Key, e.ASN)
 		if !driver.IsConflict(err) {
 			return err
 		}

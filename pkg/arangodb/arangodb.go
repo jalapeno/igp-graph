@@ -52,22 +52,22 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 	arango.DB = arango
 	arango.ArangoConn = arangoConn
 
-	// Check if vertex collection exists, if not fail as Jalapeno topology is not running
+	// Check if ls_prefix collection exists, if not fail as Jalapeno topology is not running
 	arango.lsprefix, err = arango.db.Collection(context.TODO(), lsprefix)
 	if err != nil {
 		return nil, err
 	}
-	// Check if vertex collection exists, if not fail as Jalapeno topology is not running
+	// Check if ls_link collection exists, if not fail as Jalapeno topology is not running
 	arango.lslink, err = arango.db.Collection(context.TODO(), lslink)
 	if err != nil {
 		return nil, err
 	}
-	// Check if vertex collection exists, if not fail as Jalapeno topology is not running
+	// Check if ls_srv6_sid collection exists, if not fail as Jalapeno topology is not running
 	arango.lssrv6sid, err = arango.db.Collection(context.TODO(), lssrv6sid)
 	if err != nil {
 		return nil, err
 	}
-	// Check if graph exists, if not fail as Jalapeno topology is not running
+	// Check if ls_node collection exists, if not fail as Jalapeno topology is not running
 	arango.lsnode, err = arango.db.Collection(context.TODO(), lsnode)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 			return nil, err
 		}
 	}
-	// create lsnode extended collection
+	// create ls_node_extended collection
 	var lsnodeExt_options = &driver.CreateCollectionOptions{ /* ... */ }
 	glog.V(5).Infof("ls_node_extended not found, creating")
 	arango.lsnodeExt, err = arango.db.CreateCollection(context.TODO(), "ls_node_extended", lsnodeExt_options)
@@ -158,7 +158,7 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 		}
 	}
 
-	// check if lsv4 graph exists, if not fail as processor has failed to create graph
+	// check if lsv4_graph exists, if not fail as processor has failed to create graph
 	arango.graphv4, err = arango.db.Collection(context.TODO(), "lsv4_graph")
 	if err != nil {
 		return nil, err
@@ -192,7 +192,7 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 		}
 	}
 
-	// check if lsv6 graph exists, if not fail as processor has failed to create graph
+	// check if lsv6_graph exists, if not fail as processor has failed to create graph
 	arango.graphv6, err = arango.db.Collection(context.TODO(), "lsv6_graph")
 	if err != nil {
 		return nil, err
@@ -202,7 +202,7 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 }
 
 func (a *arangoDB) Start() error {
-	if err := a.loadCollection(); err != nil {
+	if err := a.loadCollections(); err != nil {
 		return err
 	}
 	glog.Infof("Connected to arango database, starting monitor")
@@ -254,7 +254,9 @@ func (a *arangoDB) monitor() {
 	}
 }
 
-func (a *arangoDB) loadCollection() error {
+// loadCollections performs a series of ArangoDB operations including populating ls_node_extended collection
+// and querying other link state collections to build the lsv4_graph and lsv6_graph
+func (a *arangoDB) loadCollections() error {
 	ctx := context.TODO()
 	lsn_query := "for l in " + a.lsnode.Name() + " insert l in " + a.lsnodeExt.Name() + ""
 	cursor, err := a.db.Query(ctx, lsn_query, nil)
@@ -263,8 +265,8 @@ func (a *arangoDB) loadCollection() error {
 	}
 	defer cursor.Close()
 
-	// BGP-LS generates a level-1 and a level-2 entry for level-1-2 nodes
-	// remove duplicate entries in the lsnodeExt collection
+	// BGP-LS generates both a level-1 and a level-2 entry for level-1-2 nodes
+	// Here we remove duplicate entries in the ls_node_extended collection
 	dup_query := "LET duplicates = ( FOR d IN " + a.lsnodeExt.Name() +
 		" COLLECT id = d.igp_router_id, domain = d.domain_id, area = d.area_id WITH COUNT INTO count " +
 		" FILTER count > 1 RETURN { id: id, domain: domain, area: area, count: count }) " +
@@ -289,7 +291,6 @@ func (a *arangoDB) loadCollection() error {
 
 		if doc.ProtocolID == 1 {
 			glog.Infof("remove level-1 duplicate node: %s + igp id: %s protocol id: %v +  ", doc.Key, doc.IGPRouterID, doc.ProtocolID)
-			//glog.Infof("remove level-1 duplicate node: %s + igp id: %s area id: %s protocol id: %v +  ", doc.Key, doc.IGPRouterID, doc.AreaID, doc.ProtocolID)
 			if _, err := a.lsnodeExt.RemoveDocument(ctx, doc.Key); err != nil {
 				if !driver.IsConflict(err) {
 					return err
@@ -308,7 +309,7 @@ func (a *arangoDB) loadCollection() error {
 		}
 	}
 
-	// add sr-mpls prefix sids
+	// Find and add sr-mpls prefix sids to nodes in the ls_node_extended collection
 	sr_query := "for p in  " + a.lsprefix.Name() +
 		" filter p.mt_id_tlv.mt_id != 2 && p.prefix_attr_tlvs.ls_prefix_sid != null return p "
 	cursor, err = a.db.Query(ctx, sr_query, nil)
@@ -329,7 +330,7 @@ func (a *arangoDB) loadCollection() error {
 		}
 	}
 
-	// add srv6 sids
+	// Find and add srv6 sids to nodes in the ls_node_extended collection
 	srv6_query := "for s in  " + a.lssrv6sid.Name() + " return s "
 	cursor, err = a.db.Query(ctx, srv6_query, nil)
 	if err != nil {
@@ -369,7 +370,7 @@ func (a *arangoDB) loadCollection() error {
 		}
 	}
 
-	// create igp_domain collection
+	// create igp_domain collection - useful in scaled multi-domain environments
 	igpdomain_query := "for l in ls_node_extended insert " +
 		"{ _key: CONCAT_SEPARATOR(" + "\"_\", l.protocol_id, l.domain_id, l.asn), " +
 		"asn: l.asn, protocol_id: l.protocol_id, domain_id: l.domain_id, protocol: l.protocol } " +
@@ -380,8 +381,7 @@ func (a *arangoDB) loadCollection() error {
 	}
 	defer cursor.Close()
 
-	// Build lsv4_graph
-
+	// Find ipv4 ls_link entries to create edges in the lsv4_graph
 	lsv4linkquery := "for l in " + a.lslink.Name() + " filter l.protocol_id != 7 RETURN l"
 	cursor, err = a.db.Query(ctx, lsv4linkquery, nil)
 	if err != nil {
@@ -391,7 +391,6 @@ func (a *arangoDB) loadCollection() error {
 	for {
 		var p message.LSLink
 		meta, err := cursor.ReadDocument(ctx, &p)
-		//glog.Infof("processing lslink document: %+v", p)
 		if driver.IsNoMoreDocuments(err) {
 			break
 		} else if err != nil {
@@ -403,6 +402,7 @@ func (a *arangoDB) loadCollection() error {
 		}
 	}
 
+	// Find ls_prefix entries to create prefix or subnet edges in the lsv4_graph
 	lsv4pfxquery := "for l in " + a.lsprefix.Name() + //" filter l.mt_id_tlv == null return l"
 		" filter l.mt_id_tlv.mt_id != 2 && l.prefix_len != 30 && " +
 		"l.prefix_len != 31 && l.prefix_len != 32 return l"
@@ -426,7 +426,7 @@ func (a *arangoDB) loadCollection() error {
 		}
 	}
 
-	// Build lsv6_graph
+	// Find ipv6 ls_link entries to create edges in the lsv6_graph
 	lsv6linkquery := "for l in " + a.lslink.Name() + " filter l.protocol_id != 7 RETURN l"
 	cursor, err = a.db.Query(ctx, lsv6linkquery, nil)
 	if err != nil {
@@ -448,7 +448,8 @@ func (a *arangoDB) loadCollection() error {
 		}
 	}
 
-	lsv6pfxquery := "for l in " + a.lsprefix.Name() + //" filter l.mt_id_tlv == null return l"
+	// Find ipv6 ls_prefix entries to create prefix or subnet edges in the lsv6_graph
+	lsv6pfxquery := "for l in " + a.lsprefix.Name() +
 		" filter l.mt_id_tlv.mt_id == 2 && l.prefix_len != 126 && " +
 		"l.prefix_len != 127 && l.prefix_len != 128 return l"
 	cursor, err = a.db.Query(ctx, lsv6pfxquery, nil)
