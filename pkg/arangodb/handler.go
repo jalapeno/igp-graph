@@ -110,7 +110,8 @@ func (a *arangoDB) lsPrefixHandler(obj *kafkanotifier.EventMessage) error {
 			return fmt.Errorf("document %s not found but Action is not \"del\", possible stale event", obj.Key)
 		}
 
-		if o.MTID != nil {
+		// Detect IPv6 link by checking for ":" in the key
+		if strings.Contains(obj.Key, ":") {
 			return a.processv6PrefixRemoval(ctx, obj.Key, obj.Action)
 		}
 
@@ -119,8 +120,8 @@ func (a *arangoDB) lsPrefixHandler(obj *kafkanotifier.EventMessage) error {
 			return err
 		}
 		// write event into ls_node_edge topic
-		a.notifier.EventNotification(obj)
-		return nil
+		// a.notifier.EventNotification(obj)
+		// return nil
 	}
 	switch obj.Action {
 	case "add":
@@ -142,6 +143,7 @@ func (a *arangoDB) lsLinkHandler(obj *kafkanotifier.EventMessage) error {
 	if obj == nil {
 		return fmt.Errorf("event message is nil")
 	}
+	glog.Infof("Processing eventmessage: %+v", obj)
 	// Check if Collection encoded in ls_link message ID exists
 	c := strings.Split(obj.ID, "/")[0]
 	if strings.Compare(c, a.lslink.Name()) != 0 {
@@ -159,17 +161,12 @@ func (a *arangoDB) lsLinkHandler(obj *kafkanotifier.EventMessage) error {
 			return fmt.Errorf("document %s not found but Action is not \"del\", possible stale event", obj.Key)
 		}
 
-		if o.MTID != nil {
+		// Detect IPv6 link by checking for ":" in the key
+		if strings.Contains(obj.Key, ":") {
 			return a.processv6LinkRemoval(ctx, obj.Key, obj.Action)
 		}
 
-		err := a.processLinkRemoval(ctx, obj.Key, obj.Action)
-		if err != nil {
-			return err
-		}
-		// write event into ls_node_edge topic
-		a.notifier.EventNotification(obj)
-		return nil
+		return a.processLinkRemoval(ctx, obj.Key, obj.Action)
 	}
 	switch obj.Action {
 	case "add":

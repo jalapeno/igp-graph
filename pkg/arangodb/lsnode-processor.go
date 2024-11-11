@@ -10,6 +10,7 @@ import (
 	"github.com/sbezverk/gobmp/pkg/message"
 )
 
+// Add srv6 sids / locators to nodes in the ls_node_extended collection
 func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *message.LSSRv6SID) error {
 	query := "for l in " + a.lsnodeExt.Name() +
 		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\"" +
@@ -62,6 +63,7 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 	return nil
 }
 
+// Find and add sr-mpls prefix sids to nodes in the ls_node_extended collection
 func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e message.LSPrefix) error {
 	query := "for l in  " + a.lsnodeExt.Name() +
 		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\""
@@ -95,6 +97,7 @@ func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e messa
 	return nil
 }
 
+// Find and add ls_node entries to the ls_node_extended collection
 func (a *arangoDB) processLSNodeExt(ctx context.Context, key string, e *message.LSNode) error {
 	if e.ProtocolID == base.BGP {
 		// EPE Case cannot be processed because LS Node collection does not have BGP routers
@@ -145,6 +148,7 @@ func (a *arangoDB) processLSNodeExt(ctx context.Context, key string, e *message.
 	return nil
 }
 
+// Find sr-mpls prefix sids and add them to newly added node ls_node_extended collection
 func (a *arangoDB) findPrefixSID(ctx context.Context, key string, e *message.LSNode) error {
 	query := "for l in " + a.lsprefix.Name() +
 		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\"" +
@@ -177,10 +181,10 @@ func (a *arangoDB) findPrefixSID(ctx context.Context, key string, e *message.LSN
 	return nil
 }
 
+// BGP-LS generates a level-1 and a level-2 entry for level-1-2 nodes
+// remove duplicate entries in the lsnodeExt collection
 func (a *arangoDB) dedupeLSNodeExt() error {
 	ctx := context.TODO()
-	// BGP-LS generates a level-1 and a level-2 entry for level-1-2 nodes
-	// remove duplicate entries in the lsnodeExt collection
 	dup_query := "LET duplicates = ( FOR d IN " + a.lsnodeExt.Name() +
 		" COLLECT id = d.igp_router_id, domain = d.domain_id WITH COUNT INTO count " +
 		" FILTER count > 1 RETURN { id: id, domain: domain, count: count }) " +
@@ -290,6 +294,7 @@ func (a *arangoDB) processLSNodeExtRemoval(ctx context.Context, key string) erro
 	return nil
 }
 
+// when a new igp domain is detected, create a new entry in the igp_domain collection
 func (a *arangoDB) processIgpDomain(ctx context.Context, key string, e *message.LSNode) error {
 	if e.ProtocolID == base.BGP {
 		// EPE Case cannot be processed because LS Node collection does not have BGP routers
