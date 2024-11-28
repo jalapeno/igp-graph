@@ -52,22 +52,19 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 	arango.DB = arango
 	arango.ArangoConn = arangoConn
 
-	// Check if ls_prefix collection exists, if not fail as Jalapeno topology is not running
+	// Check if base link state collections exist, if not fail as Jalapeno topology is not running
 	arango.lsprefix, err = arango.db.Collection(context.TODO(), lsprefix)
 	if err != nil {
 		return nil, err
 	}
-	// Check if ls_link collection exists, if not fail as Jalapeno topology is not running
 	arango.lslink, err = arango.db.Collection(context.TODO(), lslink)
 	if err != nil {
 		return nil, err
 	}
-	// Check if ls_srv6_sid collection exists, if not fail as Jalapeno topology is not running
 	arango.lssrv6sid, err = arango.db.Collection(context.TODO(), lssrv6sid)
 	if err != nil {
 		return nil, err
 	}
-	// Check if ls_node collection exists, if not fail as Jalapeno topology is not running
 	arango.lsnode, err = arango.db.Collection(context.TODO(), lsnode)
 	if err != nil {
 		return nil, err
@@ -99,9 +96,6 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 	if err != nil {
 		return nil, err
 	}
-
-	// 	return arango, nil
-	// }
 
 	// check for igp_domain collection
 	found, err = arango.db.CollectionExists(context.TODO(), igpDomain)

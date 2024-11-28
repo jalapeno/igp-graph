@@ -52,7 +52,7 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 		srn := LSNodeExt{
 			SIDS: sn.SIDS,
 		}
-		glog.Infof("appending sid %+v ", e.Key)
+		// glog.Infof("appending sid %+v ", e.Key)
 
 		if _, err := a.lsnodeExt.UpdateDocument(ctx, ns.Key, &srn); err != nil {
 			if !driver.IsConflict(err) {
