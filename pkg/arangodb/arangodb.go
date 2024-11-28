@@ -52,26 +52,25 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 	arango.DB = arango
 	arango.ArangoConn = arangoConn
 
-	// Check if ls_prefix collection exists, if not fail as Jalapeno topology is not running
-	arango.lsprefix, err = arango.db.Collection(context.TODO(), lsprefix)
-	if err != nil {
-		return nil, err
+	// Check required collections exist
+	collections := map[string]*driver.Collection{
+		lsprefix:  &arango.lsprefix,
+		lslink:    &arango.lslink,
+		lssrv6sid: &arango.lssrv6sid,
+		lsnode:    &arango.lsnode,
 	}
-	// Check if ls_link collection exists, if not fail as Jalapeno topology is not running
-	arango.lslink, err = arango.db.Collection(context.TODO(), lslink)
-	if err != nil {
-		return nil, err
+
+	for name, coll := range collections {
+		c, err := arango.db.Collection(context.TODO(), name)
+		if err != nil {
+			glog.Errorf("Required collection %s not found: %v", name, err)
+			continue
+		}
+		*coll = c
 	}
-	// Check if ls_srv6_sid collection exists, if not fail as Jalapeno topology is not running
-	arango.lssrv6sid, err = arango.db.Collection(context.TODO(), lssrv6sid)
-	if err != nil {
-		return nil, err
-	}
-	// Check if ls_node collection exists, if not fail as Jalapeno topology is not running
-	arango.lsnode, err = arango.db.Collection(context.TODO(), lsnode)
-	if err != nil {
-		return nil, err
-	}
+
+	// ls_node_extended collection contains a set of all ls_nodes found in the DB with additional attributes
+	// found in other collections. For example ls_node_extended entries would contain SR prefix sids and SRv6 sids if present
 
 	// check for ls_node_extended collection
 	found, err := arango.db.CollectionExists(context.TODO(), lsnodeExt)
@@ -100,8 +99,8 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 		return nil, err
 	}
 
-	// 	return arango, nil
-	// }
+	// igp_domain collection contains a set of all igp domains found in the DB
+	// useful in scaled multi-domain environments that are interconnected via BGP or redistribution
 
 	// check for igp_domain collection
 	found, err = arango.db.CollectionExists(context.TODO(), igpDomain)
@@ -130,6 +129,8 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 		return nil, err
 	}
 
+	// ls_v4_graph and ls_v6_graph are used to store the full link state topology for ipv4 and ipv6 respectively
+
 	// check for lsv4 topology graph
 	found, err = arango.db.GraphExists(context.TODO(), lsv4Graph)
 	if err != nil {
@@ -140,6 +141,7 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 		if err != nil {
 			return nil, err
 		}
+		arango.lsv4Graph = c
 		glog.Infof("found graph %s", c)
 
 	} else {
@@ -158,12 +160,6 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 		}
 	}
 
-	// check if lsv4_graph exists, if not fail as processor has failed to create graph
-	arango.graphv4, err = arango.db.Collection(context.TODO(), "lsv4_graph")
-	if err != nil {
-		return nil, err
-	}
-
 	// check for lsv6 topology graph
 	found, err = arango.db.GraphExists(context.TODO(), lsv6Graph)
 	if err != nil {
@@ -174,6 +170,7 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 		if err != nil {
 			return nil, err
 		}
+		arango.lsv6Graph = c
 		glog.Infof("found graph %s", c)
 
 	} else {
@@ -190,12 +187,6 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lslink, lssrv6sid, 
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	// check if lsv6_graph exists, if not fail as processor has failed to create graph
-	arango.graphv6, err = arango.db.Collection(context.TODO(), "lsv6_graph")
-	if err != nil {
-		return nil, err
 	}
 
 	return arango, nil
@@ -225,6 +216,7 @@ func (a *arangoDB) GetArangoDBInterface() *ArangoConn {
 	return a.ArangoConn
 }
 
+// StoreMessage processes BMP BGP-LS event messages received from Kafka and calls the appropriate message handler
 func (a *arangoDB) StoreMessage(msgType dbclient.CollectionType, msg []byte) error {
 	event := &notifier.EventMessage{}
 	if err := json.Unmarshal(msg, event); err != nil {
@@ -256,6 +248,343 @@ func (a *arangoDB) monitor() {
 
 // loadCollections performs a series of ArangoDB operations including populating ls_node_extended collection
 // and querying other link state collections to build the lsv4_graph and lsv6_graph
+
+// func (a *arangoDB) loadCollections() error {
+// 	ctx := context.TODO()
+
+// 	if err := a.initializeExtendedNodes(ctx); err != nil {
+// 		return err
+// 	}
+// 	if err := a.processDuplicateNodes(ctx); err != nil {
+// 		return err
+// 	}
+// 	if err := a.createIGPDomains(ctx); err != nil {
+// 		return err
+// 	}
+// 	if err := a.loadPrefixSIDs(ctx); err != nil {
+// 		return err
+// 	}
+// 	if err := a.loadSRv6SIDs(ctx); err != nil {
+// 		return err
+// 	}
+// 	if err := a.processIBGPv6Peering(ctx); err != nil {
+// 		return err
+// 	}
+// 	if err := a.processLSv4Link(ctx); err != nil {
+// 		return err
+// 	}
+// 	if err := a.processLSv4Prefix(ctx); err != nil {
+// 		return err
+// 	}
+// 	if err := a.processLSv6Link(ctx); err != nil {
+// 		return err
+// 	}
+// 	if err := a.processLSv6Prefix(ctx); err != nil {
+// 		return err
+// 	}
+
+// 	return nil
+// }
+
+// func (a *arangoDB) initializeExtendedNodes(ctx context.Context) error {
+// 	// Copy all ls_node entries to ls_node_extended
+// 	query := "for l in " + a.lsnode.Name() + " insert l in " + a.lsnodeExt.Name()
+// 	cursor, err := a.db.Query(ctx, query, nil)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to initialize extended nodes: %v", err)
+// 	}
+// 	defer cursor.Close()
+
+// 	return nil
+// }
+
+// func (a *arangoDB) processDuplicateNodes(ctx context.Context) error {
+// 	// Find duplicates by grouping on router id, domain, and area
+// 	query := `
+//         LET duplicates = (
+//             FOR d IN ` + a.lsnodeExt.Name() + `
+//             COLLECT id = d.igp_router_id, domain = d.domain_id, area = d.area_id
+//             WITH COUNT INTO count
+//             FILTER count > 1
+//             RETURN { id: id, domain: domain, area: area, count: count }
+//         )
+//         FOR d IN duplicates
+//         FOR m IN ls_node_extended
+//         FILTER d.id == m.igp_router_id
+//         FILTER d.domain == m.domain_id
+//         RETURN m
+//     `
+
+// 	cursor, err := a.db.Query(ctx, query, nil)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to query duplicate nodes: %v", err)
+// 	}
+// 	defer cursor.Close()
+
+// 	// Process each duplicate
+// 	for {
+// 		var doc duplicateNode
+// 		_, err := cursor.ReadDocument(ctx, &doc)
+// 		if driver.IsNoMoreDocuments(err) {
+// 			break
+// 		}
+// 		if err != nil {
+// 			return fmt.Errorf("failed to read duplicate document: %v", err)
+// 		}
+
+// 		// Remove level-1 duplicates
+// 		if doc.ProtocolID == 1 {
+// 			glog.V(5).Infof("removing level-1 duplicate node: %s (igp id: %s)", doc.Key, doc.IGPRouterID)
+// 			if _, err := a.lsnodeExt.RemoveDocument(ctx, doc.Key); err != nil && !driver.IsConflict(err) {
+// 				return fmt.Errorf("failed to remove duplicate node: %v", err)
+// 			}
+// 		}
+
+// 		// Update level-2 nodes to indicate they are level-1-2
+// 		if doc.ProtocolID == 2 {
+// 			update := fmt.Sprintf(`
+//                 FOR l IN %s
+//                 FILTER l._key == "%s"
+//                 UPDATE l WITH { protocol: "ISIS Level 1-2" } IN %s
+//             `, a.lsnodeExt.Name(), doc.Key, a.lsnodeExt.Name())
+
+// 			updateCursor, err := a.db.Query(ctx, update, nil)
+// 			if err != nil {
+// 				return fmt.Errorf("failed to update level-2 node: %v", err)
+// 			}
+// 			updateCursor.Close()
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+// func (a *arangoDB) createIGPDomains(ctx context.Context) error {
+// 	// create igp_domain collection - useful in scaled multi-domain environments
+// 	igpdomain_query := "for l in ls_node_extended insert " +
+// 		"{ _key: CONCAT_SEPARATOR(" + "\"_\", l.protocol_id, l.domain_id, l.asn), " +
+// 		"asn: l.asn, protocol_id: l.protocol_id, domain_id: l.domain_id, protocol: l.protocol } " +
+// 		"into igp_domain OPTIONS { ignoreErrors: true } return l"
+// 	cursor, err := a.db.Query(ctx, igpdomain_query, nil)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer cursor.Close()
+
+// 	return nil
+// }
+
+// func (a *arangoDB) loadPrefixSIDs(ctx context.Context) error {
+// 	// Find and add sr-mpls prefix sids to nodes in the ls_node_extended collection
+// 	query := "for p in  " + a.lsprefix.Name() +
+// 		" filter p.mt_id_tlv.mt_id != 2 && p.prefix_attr_tlvs.ls_prefix_sid != null return p "
+// 	cursor, err := a.db.Query(ctx, query, nil)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer cursor.Close()
+// 	for {
+// 		var p message.LSPrefix
+// 		meta, err := cursor.ReadDocument(ctx, &p)
+// 		if driver.IsNoMoreDocuments(err) {
+// 			break
+// 		} else if err != nil {
+// 			return err
+// 		}
+// 		if err := a.processPrefixSID(ctx, meta.Key, meta.ID.String(), p); err != nil {
+// 			glog.Errorf("Failed to process ls_prefix_sid %s with error: %+v", p.ID, err)
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+// func (a *arangoDB) loadSRv6SIDs(ctx context.Context) error {
+// 	// Query all SRv6 SIDs
+// 	query := "FOR s IN " + a.lssrv6sid.Name() + " RETURN s"
+// 	cursor, err := a.db.Query(ctx, query, nil)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to query SRv6 SIDs: %v", err)
+// 	}
+// 	defer cursor.Close()
+
+// 	// Process each SRv6 SID
+// 	for {
+// 		var srv6sid message.LSSRv6SID
+// 		_, err := cursor.ReadDocument(ctx, &srv6sid)
+// 		if driver.IsNoMoreDocuments(err) {
+// 			break
+// 		}
+// 		if err != nil {
+// 			return fmt.Errorf("failed to read SRv6 SID document: %v", err)
+// 		}
+
+// 		// Update the extended node with SRv6 information
+// 		updateQuery := `
+// 			FOR n IN ` + a.lsnodeExt.Name() + `
+// 			FILTER n.igp_router_id == @routerId
+// 			AND n.domain_id == @domainId
+// 			UPDATE n WITH {
+// 				srv6_sids: APPEND(
+// 					n.srv6_sids || [],
+// 					{
+// 						sid: @sid,
+// 						behavior: @behavior
+// 					}
+// 				)
+// 			} IN ` + a.lsnodeExt.Name()
+
+// 		bindVars := map[string]interface{}{
+// 			"routerId": srv6sid.IGPRouterID,
+// 			"domainId": srv6sid.DomainID,
+// 			"sid":      srv6sid.SRv6SID,
+// 			"behavior": srv6sid.SRv6EndpointBehavior,
+// 		}
+
+// 		updateCursor, err := a.db.Query(ctx, updateQuery, bindVars)
+// 		if err != nil {
+// 			glog.Errorf("Failed to update node with SRv6 SID %s: %v", srv6sid.SRv6SID, err)
+// 			continue
+// 		}
+// 		updateCursor.Close()
+
+// 		glog.V(6).Infof("Added SRv6 SID %s to node %s", srv6sid.SRv6SID, srv6sid.IGPRouterID)
+// 	}
+
+// 	return nil
+// }
+
+// func (a *arangoDB) processIBGPv6Peering(ctx context.Context) error {
+// 	// add ipv6 iBGP peering address and ipv4 bgp router-id
+// 	ibgp6_query := "for s in peer filter s.remote_ip like " + "\"%:%\"" + " return s "
+// 	cursor, err := a.db.Query(ctx, ibgp6_query, nil)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer cursor.Close()
+// 	for {
+// 		var p message.PeerStateChange
+// 		meta, err := cursor.ReadDocument(ctx, &p)
+// 		if driver.IsNoMoreDocuments(err) {
+// 			break
+// 		} else if err != nil {
+// 			return err
+// 		}
+// 		if err := a.processbgp6(ctx, meta.Key, meta.ID.String(), &p); err != nil {
+// 			glog.Errorf("Failed to process ibgp peering %s with error: %+v", p.ID, err)
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+// func (a *arangoDB) processLSv4Link(ctx context.Context) error {
+// 	// Find ipv4 ls_link entries to create edges in the lsv4_graph
+// 	query := "for l in " + a.lslink.Name() + " filter l._key !like \"%:%\" && l.protocol_id != 7 RETURN l"
+// 	cursor, err := a.db.Query(ctx, query, nil)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer cursor.Close()
+// 	for {
+// 		var p message.LSLink
+// 		meta, err := cursor.ReadDocument(ctx, &p)
+// 		if driver.IsNoMoreDocuments(err) {
+// 			break
+// 		} else if err != nil {
+// 			return err
+// 		}
+// 		if err := a.processLSLinkEdge(ctx, meta.Key, &p); err != nil {
+// 			glog.Errorf("failed to process key: %s with error: %+v", meta.Key, err)
+// 			continue
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+// func (a *arangoDB) processLSv4Prefix(ctx context.Context) error {
+// 	// Find ls_prefix entries to create prefix or subnet edges in the lsv4_graph
+// 	query := "for l in " + a.lsprefix.Name() + //" filter l.mt_id_tlv == null return l"
+// 		" filter l.mt_id_tlv.mt_id != 2 && l.prefix_len != 30 && " +
+// 		"l.prefix_len != 31 && l.prefix_len != 32 return l"
+// 	cursor, err := a.db.Query(ctx, query, nil)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer cursor.Close()
+// 	for {
+// 		var p message.LSPrefix
+// 		meta, err := cursor.ReadDocument(ctx, &p)
+// 		//glog.Infof("processing lsprefix document: %+v", p)
+// 		if driver.IsNoMoreDocuments(err) {
+// 			break
+// 		} else if err != nil {
+// 			return err
+// 		}
+// 		if err := a.processLSPrefixEdge(ctx, meta.Key, &p); err != nil {
+// 			glog.Errorf("failed to process key: %s with error: %+v", meta.Key, err)
+// 			continue
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+// func (a *arangoDB) processLSv6Link(ctx context.Context) error {
+// 	// Find ipv6 ls_link entries to create edges in the lsv6_graph
+// 	query := "for l in " + a.lslink.Name() + " filter l._key like \"%:%\" && l.protocol_id != 7 RETURN l"
+// 	cursor, err := a.db.Query(ctx, query, nil)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer cursor.Close()
+// 	for {
+// 		var p message.LSLink
+// 		meta, err := cursor.ReadDocument(ctx, &p)
+// 		//glog.Infof("processing lslink document: %+v", p)
+// 		if driver.IsNoMoreDocuments(err) {
+// 			break
+// 		} else if err != nil {
+// 			return err
+// 		}
+// 		if err := a.processLSv6LinkEdge(ctx, meta.Key, &p); err != nil {
+// 			glog.Errorf("failed to process key: %s with error: %+v", meta.Key, err)
+// 			continue
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+// func (a *arangoDB) processLSv6Prefix(ctx context.Context) error {
+// 	// Find ipv6 ls_prefix entries to create prefix or subnet edges in the lsv6_graph
+// 	query := "for l in " + a.lsprefix.Name() +
+// 		" filter l.mt_id_tlv.mt_id == 2 && l.prefix_len != 126 && " +
+// 		"l.prefix_len != 127 && l.prefix_len != 128 return l"
+// 	cursor, err := a.db.Query(ctx, query, nil)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer cursor.Close()
+// 	for {
+// 		var p message.LSPrefix
+// 		meta, err := cursor.ReadDocument(ctx, &p)
+// 		//glog.Infof("processing lsprefix document: %+v", p)
+// 		if driver.IsNoMoreDocuments(err) {
+// 			break
+// 		} else if err != nil {
+// 			return err
+// 		}
+// 		if err := a.processLSv6PrefixEdge(ctx, meta.Key, &p); err != nil {
+// 			glog.Errorf("failed to process key: %s with error: %+v", meta.Key, err)
+// 			continue
+// 		}
+// 	}
+
+// 	return nil
+// }
+
 func (a *arangoDB) loadCollections() error {
 	ctx := context.TODO()
 	lsn_query := "for l in " + a.lsnode.Name() + " insert l in " + a.lsnodeExt.Name() + ""
@@ -473,5 +802,4 @@ func (a *arangoDB) loadCollections() error {
 	}
 
 	return nil
-
 }

@@ -40,7 +40,7 @@ func (a *arangoDB) lsNodeHandler(obj *notifier.EventMessage) error {
 	}
 	switch obj.Action {
 	case "add":
-		if err := a.processLSNodeExt(ctx, obj.Key, &o); err != nil {
+		if err := a.processNewLSNode(ctx, obj.Key, &o); err != nil {
 			return fmt.Errorf("failed to process action %s for vertex %s with error: %+v", obj.Action, obj.Key, err)
 		}
 	default:
@@ -176,10 +176,6 @@ func (a *arangoDB) lsLinkHandler(obj *kafkanotifier.EventMessage) error {
 			return fmt.Errorf("failed to process action %s for edge %s with error: %+v", obj.Action, obj.Key, err)
 		}
 	}
-	//glog.V(5).Infof("Complete processing action: %s for key: %s ID: %s", obj.Action, obj.Key, obj.ID)
-
-	// write event into ls_topoogy_v4 topic
-	//a.notifier.EventNotification(obj)
 
 	return nil
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/sbezverk/gobmp/pkg/message"
 )
 
-// processEdge processes a single ls_link connection which is a unidirectional edge between two nodes (vertices).
+// processLSLinkEdge processes a single ls_link connection which is a unidirectional edge between two nodes (vertices).
 func (a *arangoDB) processLSLinkEdge(ctx context.Context, key string, l *message.LSLink) error {
 	if l.ProtocolID == base.BGP {
 		return nil
@@ -19,7 +19,7 @@ func (a *arangoDB) processLSLinkEdge(ctx context.Context, key string, l *message
 	if l.MTID != nil {
 		return a.processLSv6LinkEdge(ctx, key, l)
 	}
-	glog.Infof("processEdge processing lslink: %s", l.ID)
+	glog.Infof("processEdge processing lslink: %s", l.Key)
 	// get local node from ls_link entry
 	ln, err := a.getv4Node(ctx, l, true)
 	if err != nil {
@@ -33,8 +33,8 @@ func (a *arangoDB) processLSLinkEdge(ctx context.Context, key string, l *message
 		glog.Errorf("processEdge failed to get remote lsnode %s for link: %s with error: %+v", l.RemoteIGPRouterID, l.ID, err)
 		return err
 	}
-	glog.V(6).Infof("Local node -> Protocol: %+v Domain ID: %+v IGP Router ID: %+v", ln.ProtocolID, ln.DomainID, ln.IGPRouterID)
-	glog.V(6).Infof("Remote node -> Protocol: %+v Domain ID: %+v IGP Router ID: %+v", rn.ProtocolID, rn.DomainID, rn.IGPRouterID)
+	glog.Infof("Local node -> Protocol: %+v Domain ID: %+v IGP Router ID: %+v", ln.ProtocolID, ln.DomainID, ln.IGPRouterID)
+	glog.Infof("Remote node -> Protocol: %+v Domain ID: %+v IGP Router ID: %+v", rn.ProtocolID, rn.DomainID, rn.IGPRouterID)
 	if err := a.createv4EdgeObject(ctx, l, ln, rn); err != nil {
 		glog.Errorf("processEdge failed to create Edge object with error: %+v", err)
 		glog.Errorf("Local node -> Protocol: %+v Domain ID: %+v IGP Router ID: %+v", ln.ProtocolID, ln.DomainID, ln.IGPRouterID)
@@ -136,6 +136,7 @@ func (a *arangoDB) createv4EdgeObject(ctx context.Context, l *message.LSLink, ln
 		UnidirAvailableBW:     l.UnidirAvailableBW,
 		UnidirBWUtilization:   l.UnidirBWUtilization,
 	}
+	glog.Infof("createv4EdgeObject creating edge object: %+v", ne)
 	if _, err := a.graphv4.CreateDocument(ctx, &ne); err != nil {
 		if !driver.IsConflict(err) {
 			return err

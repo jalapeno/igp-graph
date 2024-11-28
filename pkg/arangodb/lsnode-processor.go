@@ -52,7 +52,7 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 		srn := LSNodeExt{
 			SIDS: sn.SIDS,
 		}
-		glog.Infof("appending sid %+v ", e.Key)
+		// glog.Infof("appending sid %+v ", e.Key)
 
 		if _, err := a.lsnodeExt.UpdateDocument(ctx, ns.Key, &srn); err != nil {
 			if !driver.IsConflict(err) {
@@ -98,7 +98,7 @@ func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e messa
 }
 
 // Find and add ls_node entries to the ls_node_extended collection
-func (a *arangoDB) processLSNodeExt(ctx context.Context, key string, e *message.LSNode) error {
+func (a *arangoDB) processNewLSNode(ctx context.Context, key string, e *message.LSNode) error {
 	if e.ProtocolID == base.BGP {
 		// EPE Case cannot be processed because LS Node collection does not have BGP routers
 		return nil
@@ -136,7 +136,7 @@ func (a *arangoDB) processLSNodeExt(ctx context.Context, key string, e *message.
 		return nil
 	}
 
-	if err := a.processLSNodeExt(ctx, ns.Key, e); err != nil {
+	if err := a.processNewLSNode(ctx, ns.Key, e); err != nil {
 		glog.Errorf("Failed to process ls_node_extended %s with error: %+v", ns.Key, err)
 	}
 
@@ -230,7 +230,7 @@ func (a *arangoDB) dedupeLSNodeExt() error {
 	return nil
 }
 
-// Nov 10 2024 - find ipv6 lsnode's ipv4 bgp router-id
+// find an ipv6-only lsnode's ipv4 bgp router-id; useful for later data correlation
 func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.PeerStateChange) error {
 	query := "for l in  " + a.lsnodeExt.Name() +
 		" filter l.router_id == " + "\"" + e.RemoteIP + "\""
@@ -264,7 +264,7 @@ func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.P
 	return nil
 }
 
-// processLSNodeExtRemoval removes records from the sn_node collection which are referring to deleted LSNode
+// processLSNodeExtRemoval removes records from the ls_node_extended collection which are referring to deleted ls_node's
 func (a *arangoDB) processLSNodeExtRemoval(ctx context.Context, key string) error {
 	query := "FOR d IN " + a.lsnodeExt.Name() +
 		" filter d._key == " + "\"" + key + "\""
