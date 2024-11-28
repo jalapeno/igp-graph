@@ -248,17 +248,56 @@ func (a *arangoDB) monitor() {
 	}
 }
 
-// loadCollections performs a series of ArangoDB operations including populating ls_node_extended collection
-// and querying other link state collections to build the lsv4_graph and lsv6_graph
+// loadCollections calls a series of subfunctions to perform ArangoDB operations including populating
+// ls_node_extended collection and querying other link state collections to build the lsv4_graph and lsv6_graph
+
 func (a *arangoDB) loadCollections() error {
 	ctx := context.TODO()
+
+	if err := a.lsExtendedNodes(ctx); err != nil {
+		return err
+	}
+	if err := a.processDuplicateNodes(ctx); err != nil {
+		return err
+	}
+	if err := a.loadPrefixSIDs(ctx); err != nil {
+		return err
+	}
+	if err := a.loadSRv6SIDs(ctx); err != nil {
+		return err
+	}
+	if err := a.processIBGPv6Peering(ctx); err != nil {
+		return err
+	}
+	if err := a.createIGPDomains(ctx); err != nil {
+		return err
+	}
+	if err := a.lsv4LinkEdges(ctx); err != nil {
+		return err
+	}
+	if err := a.lsv4PrefixEdges(ctx); err != nil {
+		return err
+	}
+	if err := a.lsv6LinkEdges(ctx); err != nil {
+		return err
+	}
+	if err := a.lsv6PrefixEdges(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+func (a *arangoDB) lsExtendedNodes(ctx context.Context) error {
 	lsn_query := "for l in " + a.lsnode.Name() + " insert l in " + a.lsnodeExt.Name() + ""
 	cursor, err := a.db.Query(ctx, lsn_query, nil)
 	if err != nil {
 		return err
 	}
 	defer cursor.Close()
+	return nil
+}
 
+func (a *arangoDB) processDuplicateNodes(ctx context.Context) error {
 	// BGP-LS generates both a level-1 and a level-2 entry for level-1-2 nodes
 	// Here we remove duplicate entries in the ls_node_extended collection
 	dup_query := "LET duplicates = ( FOR d IN " + a.lsnodeExt.Name() +
@@ -303,10 +342,14 @@ func (a *arangoDB) loadCollections() error {
 		}
 	}
 
+	return nil
+}
+
+func (a *arangoDB) loadPrefixSIDs(ctx context.Context) error {
 	// Find and add sr-mpls prefix sids to nodes in the ls_node_extended collection
 	sr_query := "for p in  " + a.lsprefix.Name() +
 		" filter p.mt_id_tlv.mt_id != 2 && p.prefix_attr_tlvs.ls_prefix_sid != null return p "
-	cursor, err = a.db.Query(ctx, sr_query, nil)
+	cursor, err := a.db.Query(ctx, sr_query, nil)
 	if err != nil {
 		return err
 	}
@@ -324,9 +367,13 @@ func (a *arangoDB) loadCollections() error {
 		}
 	}
 
+	return nil
+}
+
+func (a *arangoDB) loadSRv6SIDs(ctx context.Context) error {
 	// Find and add srv6 sids to nodes in the ls_node_extended collection
 	srv6_query := "for s in  " + a.lssrv6sid.Name() + " return s "
-	cursor, err = a.db.Query(ctx, srv6_query, nil)
+	cursor, err := a.db.Query(ctx, srv6_query, nil)
 	if err != nil {
 		return err
 	}
@@ -344,9 +391,13 @@ func (a *arangoDB) loadCollections() error {
 		}
 	}
 
+	return nil
+}
+
+func (a *arangoDB) processIBGPv6Peering(ctx context.Context) error {
 	// add ipv6 iBGP peering address and ipv4 bgp router-id
 	ibgp6_query := "for s in peer filter s.remote_ip like " + "\"%:%\"" + " return s "
-	cursor, err = a.db.Query(ctx, ibgp6_query, nil)
+	cursor, err := a.db.Query(ctx, ibgp6_query, nil)
 	if err != nil {
 		return err
 	}
@@ -364,20 +415,28 @@ func (a *arangoDB) loadCollections() error {
 		}
 	}
 
+	return nil
+}
+
+func (a *arangoDB) createIGPDomains(ctx context.Context) error {
 	// create igp_domain collection - useful in scaled multi-domain environments
 	igpdomain_query := "for l in ls_node_extended insert " +
 		"{ _key: CONCAT_SEPARATOR(" + "\"_\", l.protocol_id, l.domain_id, l.asn), " +
 		"asn: l.asn, protocol_id: l.protocol_id, domain_id: l.domain_id, protocol: l.protocol } " +
 		"into igp_domain OPTIONS { ignoreErrors: true } return l"
-	cursor, err = a.db.Query(ctx, igpdomain_query, nil)
+	cursor, err := a.db.Query(ctx, igpdomain_query, nil)
 	if err != nil {
 		return err
 	}
 	defer cursor.Close()
 
+	return nil
+}
+
+func (a *arangoDB) lsv4LinkEdges(ctx context.Context) error {
 	// Find ipv4 ls_link entries to create edges in the lsv4_graph
 	lsv4linkquery := "for l in " + a.lslink.Name() + " filter l.protocol_id != 7 RETURN l"
-	cursor, err = a.db.Query(ctx, lsv4linkquery, nil)
+	cursor, err := a.db.Query(ctx, lsv4linkquery, nil)
 	if err != nil {
 		return err
 	}
@@ -396,11 +455,15 @@ func (a *arangoDB) loadCollections() error {
 		}
 	}
 
+	return nil
+}
+
+func (a *arangoDB) lsv4PrefixEdges(ctx context.Context) error {
 	// Find ls_prefix entries to create prefix or subnet edges in the lsv4_graph
 	lsv4pfxquery := "for l in " + a.lsprefix.Name() + //" filter l.mt_id_tlv == null return l"
 		" filter l.mt_id_tlv.mt_id != 2 && l.prefix_len != 30 && " +
 		"l.prefix_len != 31 && l.prefix_len != 32 return l"
-	cursor, err = a.db.Query(ctx, lsv4pfxquery, nil)
+	cursor, err := a.db.Query(ctx, lsv4pfxquery, nil)
 	if err != nil {
 		return err
 	}
@@ -420,9 +483,13 @@ func (a *arangoDB) loadCollections() error {
 		}
 	}
 
+	return nil
+}
+
+func (a *arangoDB) lsv6LinkEdges(ctx context.Context) error {
 	// Find ipv6 ls_link entries to create edges in the lsv6_graph
 	lsv6linkquery := "for l in " + a.lslink.Name() + " filter l.protocol_id != 7 RETURN l"
-	cursor, err = a.db.Query(ctx, lsv6linkquery, nil)
+	cursor, err := a.db.Query(ctx, lsv6linkquery, nil)
 	if err != nil {
 		return err
 	}
@@ -442,11 +509,15 @@ func (a *arangoDB) loadCollections() error {
 		}
 	}
 
+	return nil
+}
+
+func (a *arangoDB) lsv6PrefixEdges(ctx context.Context) error {
 	// Find ipv6 ls_prefix entries to create prefix or subnet edges in the lsv6_graph
 	lsv6pfxquery := "for l in " + a.lsprefix.Name() +
 		" filter l.mt_id_tlv.mt_id == 2 && l.prefix_len != 126 && " +
 		"l.prefix_len != 127 && l.prefix_len != 128 return l"
-	cursor, err = a.db.Query(ctx, lsv6pfxquery, nil)
+	cursor, err := a.db.Query(ctx, lsv6pfxquery, nil)
 	if err != nil {
 		return err
 	}
