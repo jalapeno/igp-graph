@@ -21,7 +21,7 @@ type srObject struct {
 	PrefixAttrTLVs *bgpls.PrefixAttrTLVs `json:"prefix_attr_tlvs,omitempty"`
 }
 
-type IGPNode struct {
+type igpNode struct {
 	Key                  string                          `json:"_key,omitempty"`
 	ID                   string                          `json:"_id,omitempty"`
 	Rev                  string                          `json:"_rev,omitempty"`

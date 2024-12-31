@@ -21,7 +21,7 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 		return err
 	}
 	defer ncursor.Close()
-	var sn IGPNode
+	var sn igpNode
 	ns, err := ncursor.ReadDocument(ctx, &sn)
 	if err != nil {
 		if !driver.IsNoMoreDocuments(err) {
@@ -49,7 +49,7 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 	} else {
 
 		sn.SIDS = append(sn.SIDS, newsid)
-		srn := IGPNode{
+		srn := igpNode{
 			SIDS: sn.SIDS,
 		}
 		// glog.Infof("appending sid %+v ", e.Key)
@@ -74,7 +74,7 @@ func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e messa
 	}
 	defer pcursor.Close()
 	for {
-		var ln IGPNode
+		var ln igpNode
 		nl, err := pcursor.ReadDocument(ctx, &ln)
 		if err != nil {
 			if !driver.IsNoMoreDocuments(err) {
@@ -111,7 +111,7 @@ func (a *arangoDB) processIgpNode(ctx context.Context, key string, e *message.LS
 		return err
 	}
 	defer ncursor.Close()
-	var sn IGPNode
+	var sn igpNode
 	ns, err := ncursor.ReadDocument(ctx, &sn)
 	if err != nil {
 		if !driver.IsNoMoreDocuments(err) {
@@ -241,7 +241,7 @@ func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.P
 	}
 	defer pcursor.Close()
 	for {
-		var ln IGPNode
+		var ln igpNode
 		nl, err := pcursor.ReadDocument(ctx, &ln)
 		if err != nil {
 			if !driver.IsNoMoreDocuments(err) {
@@ -276,7 +276,7 @@ func (a *arangoDB) processIgpNodeRemoval(ctx context.Context, key string) error 
 	defer ncursor.Close()
 
 	for {
-		var nm IGPNode
+		var nm igpNode
 		m, err := ncursor.ReadDocument(ctx, &nm)
 		if err != nil {
 			if !driver.IsNoMoreDocuments(err) {
@@ -310,7 +310,7 @@ func (a *arangoDB) processIgpDomain(ctx context.Context, key string, e *message.
 		return err
 	}
 	defer ncursor.Close()
-	var sn IGPNode
+	var sn igpNode
 	ns, err := ncursor.ReadDocument(ctx, &sn)
 	if err != nil {
 		if !driver.IsNoMoreDocuments(err) {
