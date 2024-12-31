@@ -37,10 +37,11 @@ var (
 	lslink     string
 	lssrv6sid  string
 	lsnode     string
-	lsnodeExt  string
+	//lsnodeExt  string
 	igpDomain  string
-	lsv4Graph  string
-	lsv6Graph  string
+	igpNode    string
+	igpv4Graph string
+	igpv6Graph string
 )
 
 func init() {
@@ -51,8 +52,8 @@ func init() {
 	flag.StringVar(&dbUser, "database-user", "", "DB User name")
 	flag.StringVar(&dbPass, "database-pass", "", "DB User's password")
 
-	// flag.StringVar(&msgSrvAddr, "message-server", "198.18.133.103:30092", "URL to the messages supplying server")
-	// flag.StringVar(&dbSrvAddr, "database-server", "http://198.18.133.103:30852", "{dns name}:port or X.X.X.X:port of the graph database")
+	// flag.StringVar(&msgSrvAddr, "message-server", "198.18.133.104:30092", "URL to the messages supplying server")
+	// flag.StringVar(&dbSrvAddr, "database-server", "http://198.18.133.104:30852", "{dns name}:port or X.X.X.X:port of the graph database")
 	// flag.StringVar(&dbName, "database-name", "jalapeno", "DB name")
 	// flag.StringVar(&dbUser, "database-user", "root", "DB User name")
 	// flag.StringVar(&dbPass, "database-pass", "jalapeno", "DB User's password")
@@ -61,10 +62,11 @@ func init() {
 	flag.StringVar(&lslink, "ls_link", "ls_link", "ls_link Collection name, default \"ls_link\"")
 	flag.StringVar(&lssrv6sid, "ls_srv6_sid", "ls_srv6_sid", "ls_srv6_sid Collection name, default: \"ls_srv6_sid\"")
 	flag.StringVar(&lsnode, "ls_node", "ls_node", "ls_node Collection name, default \"ls_node\"")
-	flag.StringVar(&lsnodeExt, "ls_node_extended", "ls_node_extended", "ls_node_extended Collection name, default \"ls_node_extended\"")
+	//flag.StringVar(&lsnodeExt, "ls_node_extended", "ls_node_extended", "ls_node_extended Collection name, default \"ls_node_extended\"")
 	flag.StringVar(&igpDomain, "igp_domain", "igp_domain", "igp_domain Collection name, default \"igp_domain\"")
-	flag.StringVar(&lsv4Graph, "lsv4_graph", "lsv4_graph", "lsv4_graph Collection name, default \"lsv4_graph\"")
-	flag.StringVar(&lsv6Graph, "lsv6_graph", "lsv6_graph", "lsv6_graph Collection name, default \"lsv6_graph\"")
+	flag.StringVar(&igpNode, "igp_node", "igp_node", "igp_node Collection name, default \"igp_node\"")
+	flag.StringVar(&igpv4Graph, "igpv4_graph", "igpv4_graph", "igpv4_graph Collection name, default \"igpv4_graph\"")
+	flag.StringVar(&igpv6Graph, "igpv6_graph", "igpv6_graph", "igpv6_graph Collection name, default \"igpv6_graph\"")
 }
 
 var (
@@ -108,7 +110,8 @@ func main() {
 	}
 
 	dbSrv, err := arangodb.NewDBSrvClient(dbSrvAddr, dbUser, dbPass, dbName, lsprefix, lslink, lssrv6sid, lsnode,
-		lsnodeExt, igpDomain, lsv4Graph, lsv6Graph, notifier)
+		//lsnodeExt,
+		igpDomain, igpNode, igpv4Graph, igpv6Graph, notifier)
 	if err != nil {
 		glog.Errorf("failed to initialize databse client with error: %+v", err)
 		os.Exit(1)

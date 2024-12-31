@@ -17,7 +17,7 @@ func (a *arangoDB) processLSLinkEdge(ctx context.Context, key string, l *message
 		return nil
 	}
 	if l.MTID != nil {
-		return a.processLSv6LinkEdge(ctx, key, l)
+		return a.processigpv6LinkEdge(ctx, key, l)
 	}
 	glog.Infof("processEdge processing lslink: %s", l.ID)
 	// get local node from ls_link entry
@@ -61,7 +61,7 @@ func (a *arangoDB) processLinkRemoval(ctx context.Context, key string, action st
 
 func (a *arangoDB) getv4Node(ctx context.Context, e *message.LSLink, local bool) (*message.LSNode, error) {
 	// Need to find ls_node object matching ls_link's IGP Router ID
-	query := "FOR d IN " + a.lsnodeExt.Name()
+	query := "FOR d IN " + a.igpNode.Name()
 	if local {
 		//glog.Infof("getNode local node per link: %s, %s, %v", e.IGPRouterID, e.ID, e.ProtocolID)
 		query += " filter d.igp_router_id == " + "\"" + e.IGPRouterID + "\""

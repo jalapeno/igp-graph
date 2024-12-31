@@ -12,7 +12,7 @@ import (
 )
 
 // processEdge processes a single ipv6 ls_prefix entry which is connected to a node
-func (a *arangoDB) processLSv6PrefixEdge(ctx context.Context, key string, p *message.LSPrefix) error {
+func (a *arangoDB) processigpv6PrefixEdge(ctx context.Context, key string, p *message.LSPrefix) error {
 	//glog.V(9).Infof("processEdge processing lsprefix: %s", l.ID)
 
 	// filter out IPv6, ls link, and loopback prefixes
@@ -21,12 +21,12 @@ func (a *arangoDB) processLSv6PrefixEdge(ctx context.Context, key string, p *mes
 	}
 
 	// get remote node from ls_link entry
-	lsnode, err := a.getLSv6Node(ctx, p, false)
+	lsnode, err := a.getigpv6Node(ctx, p, false)
 	if err != nil {
 		glog.Errorf("processEdge failed to get remote lsnode %s for link: %s with error: %+v", p.IGPRouterID, p.ID, err)
 		return err
 	}
-	if err := a.createLSv6PrefixEdgeObject(ctx, p, lsnode); err != nil {
+	if err := a.createigpv6PrefixEdgeObject(ctx, p, lsnode); err != nil {
 		glog.Errorf("processEdge failed to create Edge object with error: %+v", err)
 		return err
 	}
@@ -48,9 +48,9 @@ func (a *arangoDB) processv6PrefixRemoval(ctx context.Context, key string, actio
 	return nil
 }
 
-func (a *arangoDB) getLSv6Node(ctx context.Context, p *message.LSPrefix, local bool) (*message.LSNode, error) {
+func (a *arangoDB) getigpv6Node(ctx context.Context, p *message.LSPrefix, local bool) (*message.LSNode, error) {
 	// Need to find ls_node object matching ls_prefix's IGP Router ID
-	query := "FOR d IN ls_node_extended" //+ a.lsnodeExt.Name()
+	query := "FOR d IN igp_node" //+ a.lsnodeExt.Name()
 	query += " filter d.igp_router_id == " + "\"" + p.IGPRouterID + "\""
 	query += " filter d.domain_id == " + strconv.Itoa(int(p.DomainID))
 
@@ -86,7 +86,7 @@ func (a *arangoDB) getLSv6Node(ctx context.Context, p *message.LSPrefix, local b
 	return &ln, nil
 }
 
-func (a *arangoDB) createLSv6PrefixEdgeObject(ctx context.Context, l *message.LSPrefix, ln *message.LSNode) error {
+func (a *arangoDB) createigpv6PrefixEdgeObject(ctx context.Context, l *message.LSPrefix, ln *message.LSNode) error {
 	mtid := 0
 	if l.MTID != nil {
 		mtid = int(l.MTID.MTID)

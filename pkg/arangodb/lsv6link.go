@@ -12,7 +12,7 @@ import (
 )
 
 // processEdge processes a single ipvls_link connection which is a unidirectional edge between two nodes (vertices).
-func (a *arangoDB) processLSv6LinkEdge(ctx context.Context, key string, l *message.LSLink) error {
+func (a *arangoDB) processigpv6LinkEdge(ctx context.Context, key string, l *message.LSLink) error {
 	if l.ProtocolID == base.BGP {
 		return nil
 	}
@@ -61,8 +61,8 @@ func (a *arangoDB) processv6LinkRemoval(ctx context.Context, key string, action 
 }
 
 func (a *arangoDB) getv6Node(ctx context.Context, e *message.LSLink, local bool) (*message.LSNode, error) {
-	// Need to find ls_node object matching ls_link's IGP Router ID
-	query := "FOR d IN ls_node_extended " //+ a.lsnodeExt.Name()
+	// Need to find igp_node object matching ls_link's IGP Router ID
+	query := "FOR d IN igp_node " //+ a.lsnodeExt.Name()
 	if local {
 		//glog.Infof("getNode local node per link: %s, %s, %v", e.IGPRouterID, e.ID, e.ProtocolID)
 		query += " filter d.igp_router_id == " + "\"" + e.IGPRouterID + "\""
