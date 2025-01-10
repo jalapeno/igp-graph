@@ -24,7 +24,7 @@ func (a *arangoDB) lsNodeHandler(obj *notifier.EventMessage) error {
 	if strings.Compare(c, a.lsnode.Name()) != 0 {
 		return fmt.Errorf("configured collection name %s and received in event collection name %s do not match", a.lsnode.Name(), c)
 	}
-	glog.Infof("Processing action: %s for key: %s ID: %s", obj.Action, obj.Key, obj.ID)
+	//glog.Infof("Processing action: %s for key: %s ID: %s", obj.Action, obj.Key, obj.ID)
 	var o message.LSNode
 	_, err := a.lsnode.ReadDocument(ctx, obj.Key, &o)
 	if err != nil {
@@ -143,7 +143,7 @@ func (a *arangoDB) lsLinkHandler(obj *kafkanotifier.EventMessage) error {
 	if obj == nil {
 		return fmt.Errorf("event message is nil")
 	}
-	glog.Infof("Processing eventmessage: %+v", obj)
+	//glog.Infof("Processing eventmessage: %+v", obj)
 	// Check if Collection encoded in ls_link message ID exists
 	c := strings.Split(obj.ID, "/")[0]
 	if strings.Compare(c, a.lslink.Name()) != 0 {
