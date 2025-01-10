@@ -91,8 +91,11 @@ func (a *arangoDB) createigpv6PrefixEdgeObject(ctx context.Context, l *message.L
 	if l.MTID != nil {
 		mtid = int(l.MTID.MTID)
 	}
-	ne := lsTopologyObject{
-		Key:            l.Key,
+
+	// Node to Prefix direction
+	glog.Infof("creating prefix edge object from node %s to prefix: %s ", ln.Key, l.Key)
+	nodeToPrefix := lsTopologyObject{
+		Key:            ln.Key + "_to_" + l.Key, // Changed key format
 		From:           ln.ID,
 		To:             l.ID,
 		Link:           l.Key,
@@ -107,13 +110,36 @@ func (a *arangoDB) createigpv6PrefixEdgeObject(ctx context.Context, l *message.L
 		PrefixMetric:   l.PrefixMetric,
 		PrefixAttrTLVs: l.PrefixAttrTLVs,
 	}
-	if _, err := a.graphv6.CreateDocument(ctx, &ne); err != nil {
-		if !driver.IsConflict(err) {
-			return err
-		}
-		// The document already exists, updating it with the latest info
-		if _, err := a.graphv6.UpdateDocument(ctx, ne.Key, &ne); err != nil {
-			return err
+
+	// Prefix to Node direction
+	glog.Infof("creating prefix edge object from prefix: %s to node: %s ", l.Key, ln.Key)
+	prefixToNode := lsTopologyObject{
+		Key:            l.Key + "_to_" + ln.Key, // Changed key format
+		From:           l.ID,
+		To:             ln.ID,
+		Link:           l.Key,
+		ProtocolID:     l.ProtocolID,
+		DomainID:       l.DomainID,
+		MTID:           uint16(mtid),
+		AreaID:         l.AreaID,
+		Protocol:       l.Protocol,
+		LocalNodeASN:   ln.ASN,
+		Prefix:         l.Prefix,
+		PrefixLen:      l.PrefixLen,
+		PrefixMetric:   l.PrefixMetric,
+		PrefixAttrTLVs: l.PrefixAttrTLVs,
+	}
+
+	// Create/Update both directions
+	for _, edge := range []*lsTopologyObject{&nodeToPrefix, &prefixToNode} {
+		if _, err := a.graphv6.CreateDocument(ctx, edge); err != nil {
+			if !driver.IsConflict(err) {
+				return err
+			}
+			// The document already exists, updating it with the latest info
+			if _, err := a.graphv6.UpdateDocument(ctx, edge.Key, edge); err != nil {
+				return err
+			}
 		}
 	}
 
