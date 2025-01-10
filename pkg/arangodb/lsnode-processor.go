@@ -28,8 +28,8 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 			return err
 		}
 	}
-	// glog.Infof("igp_node %s + srv6sid %s", ns.Key, e.SRv6SID)
-	// glog.Infof("existing sids: %+v", &sn.SIDS)
+	glog.Infof("igp_node %s + srv6sid %s", ns.Key, e.SRv6SID)
+	glog.Infof("existing sids: %+v", &sn.SIDS)
 
 	newsid := SID{
 		SRv6SID:              e.SRv6SID,
