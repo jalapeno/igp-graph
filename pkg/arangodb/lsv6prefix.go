@@ -12,7 +12,7 @@ import (
 )
 
 // processEdge processes a single ipv6 ls_prefix entry which is connected to a node
-func (a *arangoDB) processLSv6PrefixEdge(ctx context.Context, key string, p *message.LSPrefix) error {
+func (a *arangoDB) processigpv6PrefixEdge(ctx context.Context, key string, p *message.LSPrefix) error {
 	//glog.V(9).Infof("processEdge processing lsprefix: %s", l.ID)
 
 	// filter out IPv6, ls link, and loopback prefixes
@@ -21,12 +21,12 @@ func (a *arangoDB) processLSv6PrefixEdge(ctx context.Context, key string, p *mes
 	}
 
 	// get remote node from ls_link entry
-	lsnode, err := a.getLSv6Node(ctx, p, false)
+	lsnode, err := a.getigpv6Node(ctx, p, false)
 	if err != nil {
 		glog.Errorf("processEdge failed to get remote lsnode %s for link: %s with error: %+v", p.IGPRouterID, p.ID, err)
 		return err
 	}
-	if err := a.createLSv6PrefixEdgeObject(ctx, p, lsnode); err != nil {
+	if err := a.createigpv6PrefixEdgeObject(ctx, p, lsnode); err != nil {
 		glog.Errorf("processEdge failed to create Edge object with error: %+v", err)
 		return err
 	}
@@ -48,9 +48,9 @@ func (a *arangoDB) processv6PrefixRemoval(ctx context.Context, key string, actio
 	return nil
 }
 
-func (a *arangoDB) getLSv6Node(ctx context.Context, p *message.LSPrefix, local bool) (*message.LSNode, error) {
+func (a *arangoDB) getigpv6Node(ctx context.Context, p *message.LSPrefix, local bool) (*message.LSNode, error) {
 	// Need to find ls_node object matching ls_prefix's IGP Router ID
-	query := "FOR d IN ls_node_extended" //+ a.lsnodeExt.Name()
+	query := "FOR d IN igp_node" //+ a.lsnodeExt.Name()
 	query += " filter d.igp_router_id == " + "\"" + p.IGPRouterID + "\""
 	query += " filter d.domain_id == " + strconv.Itoa(int(p.DomainID))
 
@@ -86,13 +86,16 @@ func (a *arangoDB) getLSv6Node(ctx context.Context, p *message.LSPrefix, local b
 	return &ln, nil
 }
 
-func (a *arangoDB) createLSv6PrefixEdgeObject(ctx context.Context, l *message.LSPrefix, ln *message.LSNode) error {
+func (a *arangoDB) createigpv6PrefixEdgeObject(ctx context.Context, l *message.LSPrefix, ln *message.LSNode) error {
 	mtid := 0
 	if l.MTID != nil {
 		mtid = int(l.MTID.MTID)
 	}
-	ne := lsTopologyObject{
-		Key:            l.Key,
+
+	// Node to Prefix direction
+	glog.Infof("creating prefix edge object from node %s to prefix: %s ", ln.Key, l.Key)
+	nodeToPrefix := lsTopologyObject{
+		Key:            ln.Key + "_to_" + l.Key, // Changed key format
 		From:           ln.ID,
 		To:             l.ID,
 		Link:           l.Key,
@@ -107,13 +110,36 @@ func (a *arangoDB) createLSv6PrefixEdgeObject(ctx context.Context, l *message.LS
 		PrefixMetric:   l.PrefixMetric,
 		PrefixAttrTLVs: l.PrefixAttrTLVs,
 	}
-	if _, err := a.graphv6.CreateDocument(ctx, &ne); err != nil {
-		if !driver.IsConflict(err) {
-			return err
-		}
-		// The document already exists, updating it with the latest info
-		if _, err := a.graphv6.UpdateDocument(ctx, ne.Key, &ne); err != nil {
-			return err
+
+	// Prefix to Node direction
+	glog.Infof("creating prefix edge object from prefix: %s to node: %s ", l.Key, ln.Key)
+	prefixToNode := lsTopologyObject{
+		Key:            l.Key + "_to_" + ln.Key, // Changed key format
+		From:           l.ID,
+		To:             ln.ID,
+		Link:           l.Key,
+		ProtocolID:     l.ProtocolID,
+		DomainID:       l.DomainID,
+		MTID:           uint16(mtid),
+		AreaID:         l.AreaID,
+		Protocol:       l.Protocol,
+		LocalNodeASN:   ln.ASN,
+		Prefix:         l.Prefix,
+		PrefixLen:      l.PrefixLen,
+		PrefixMetric:   l.PrefixMetric,
+		PrefixAttrTLVs: l.PrefixAttrTLVs,
+	}
+
+	// Create/Update both directions
+	for _, edge := range []*lsTopologyObject{&nodeToPrefix, &prefixToNode} {
+		if _, err := a.graphv6.CreateDocument(ctx, edge); err != nil {
+			if !driver.IsConflict(err) {
+				return err
+			}
+			// The document already exists, updating it with the latest info
+			if _, err := a.graphv6.UpdateDocument(ctx, edge.Key, edge); err != nil {
+				return err
+			}
 		}
 	}
 

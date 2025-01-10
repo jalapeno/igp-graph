@@ -36,11 +36,11 @@ func (a *arangoDB) lsNodeHandler(obj *notifier.EventMessage) error {
 		if obj.Action != "del" {
 			return fmt.Errorf("document %s not found but Action is not \"del\", possible stale event", obj.Key)
 		}
-		return a.processLSNodeExtRemoval(ctx, obj.Key)
+		return a.processIgpNodeRemoval(ctx, obj.Key)
 	}
 	switch obj.Action {
 	case "add":
-		if err := a.processLSNodeExt(ctx, obj.Key, &o); err != nil {
+		if err := a.processIgpNode(ctx, obj.Key, &o); err != nil {
 			return fmt.Errorf("failed to process action %s for vertex %s with error: %+v", obj.Action, obj.Key, err)
 		}
 	default:
@@ -72,7 +72,7 @@ func (a *arangoDB) lsSRv6SIDHandler(obj *notifier.EventMessage) error {
 		if obj.Action != "del" {
 			return fmt.Errorf("document %s not found but Action is not \"del\", possible stale event", obj.Key)
 		}
-		glog.V(6).Infof("SRv6 SID deleted: %s for ls_node_extended key: %s ", obj.Action, obj.Key)
+		glog.V(6).Infof("SRv6 SID deleted: %s for igp_node key: %s ", obj.Action, obj.Key)
 		return nil
 	}
 	switch obj.Action {

@@ -16,7 +16,7 @@ func (a *arangoDB) processLSPrefixEdge(ctx context.Context, key string, p *messa
 	//glog.V(9).Infof("processEdge processing lsprefix: %s", l.ID)
 
 	if p.MTID != nil {
-		return a.processLSv6PrefixEdge(ctx, key, p)
+		return a.processigpv6PrefixEdge(ctx, key, p)
 	}
 	// filter out IPv6, ls link, and loopback prefixes
 	if p.PrefixLen == 30 || p.PrefixLen == 31 || p.PrefixLen == 32 {
@@ -24,12 +24,12 @@ func (a *arangoDB) processLSPrefixEdge(ctx context.Context, key string, p *messa
 	}
 
 	// get remote node from ls_link entry
-	lsnode, err := a.getLSv4Node(ctx, p, false)
+	lsnode, err := a.getigpv4Node(ctx, p, false)
 	if err != nil {
 		glog.Errorf("processEdge failed to get remote lsnode %s for link: %s with error: %+v", p.IGPRouterID, p.ID, err)
 		return err
 	}
-	if err := a.createLSv4PrefixEdgeObject(ctx, p, lsnode); err != nil {
+	if err := a.createigpv4PrefixEdgeObject(ctx, p, lsnode); err != nil {
 		glog.Errorf("processEdge failed to create Edge object with error: %+v", err)
 		return err
 	}
@@ -50,9 +50,9 @@ func (a *arangoDB) processPrefixRemoval(ctx context.Context, key string, action 
 	return nil
 }
 
-func (a *arangoDB) getLSv4Node(ctx context.Context, p *message.LSPrefix, local bool) (*message.LSNode, error) {
+func (a *arangoDB) getigpv4Node(ctx context.Context, p *message.LSPrefix, local bool) (*message.LSNode, error) {
 	// Need to find ls_node object matching ls_prefix's IGP Router ID
-	query := "FOR d IN " + a.lsnodeExt.Name()
+	query := "FOR d IN " + a.igpNode.Name()
 	query += " filter d.igp_router_id == " + "\"" + p.IGPRouterID + "\""
 	query += " filter d.domain_id == " + strconv.Itoa(int(p.DomainID))
 
@@ -88,7 +88,7 @@ func (a *arangoDB) getLSv4Node(ctx context.Context, p *message.LSPrefix, local b
 	return &ln, nil
 }
 
-func (a *arangoDB) createLSv4PrefixEdgeObject(ctx context.Context, l *message.LSPrefix, ln *message.LSNode) error {
+func (a *arangoDB) createigpv4PrefixEdgeObject(ctx context.Context, l *message.LSPrefix, ln *message.LSNode) error {
 	mtid := 0
 	if l.MTID != nil {
 		mtid = int(l.MTID.MTID)

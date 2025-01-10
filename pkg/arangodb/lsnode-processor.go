@@ -10,9 +10,9 @@ import (
 	"github.com/sbezverk/gobmp/pkg/message"
 )
 
-// Add srv6 sids / locators to nodes in the ls_node_extended collection
+// Add srv6 sids / locators to nodes in the igp_node collection
 func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *message.LSSRv6SID) error {
-	query := "for l in " + a.lsnodeExt.Name() +
+	query := "for l in " + a.igpNode.Name() +
 		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\"" +
 		" filter l.domain_id == " + strconv.Itoa(int(e.DomainID))
 	query += " return l"
@@ -21,14 +21,14 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 		return err
 	}
 	defer ncursor.Close()
-	var sn LSNodeExt
+	var sn igpNode
 	ns, err := ncursor.ReadDocument(ctx, &sn)
 	if err != nil {
 		if !driver.IsNoMoreDocuments(err) {
 			return err
 		}
 	}
-	// glog.Infof("ls_node_extended %s + srv6sid %s", ns.Key, e.SRv6SID)
+	// glog.Infof("igp_node %s + srv6sid %s", ns.Key, e.SRv6SID)
 	// glog.Infof("existing sids: %+v", &sn.SIDS)
 
 	newsid := SID{
@@ -45,16 +45,16 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 		}
 	}
 	if result {
-		glog.Infof("sid %+v exists in ls_node_extended document", e.SRv6SID)
+		glog.Infof("sid %+v exists in igp_node document", e.SRv6SID)
 	} else {
 
 		sn.SIDS = append(sn.SIDS, newsid)
-		srn := LSNodeExt{
+		srn := igpNode{
 			SIDS: sn.SIDS,
 		}
 		// glog.Infof("appending sid %+v ", e.Key)
 
-		if _, err := a.lsnodeExt.UpdateDocument(ctx, ns.Key, &srn); err != nil {
+		if _, err := a.igpNode.UpdateDocument(ctx, ns.Key, &srn); err != nil {
 			if !driver.IsConflict(err) {
 				return err
 			}
@@ -63,9 +63,9 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 	return nil
 }
 
-// Find and add sr-mpls prefix sids to nodes in the ls_node_extended collection
+// Find and add sr-mpls prefix sids to nodes in the igp_node collection
 func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e message.LSPrefix) error {
-	query := "for l in  " + a.lsnodeExt.Name() +
+	query := "for l in  " + a.igpNode.Name() +
 		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\""
 	query += " return l"
 	pcursor, err := a.db.Query(ctx, query, nil)
@@ -74,7 +74,7 @@ func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e messa
 	}
 	defer pcursor.Close()
 	for {
-		var ln LSNodeExt
+		var ln igpNode
 		nl, err := pcursor.ReadDocument(ctx, &ln)
 		if err != nil {
 			if !driver.IsNoMoreDocuments(err) {
@@ -82,13 +82,13 @@ func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e messa
 			}
 			break
 		}
-		glog.V(6).Infof("ls_node_extended: %s + prefix sid %v +  ", ln.Key, e.PrefixAttrTLVs.LSPrefixSID)
+		glog.V(6).Infof("igp_node: %s + prefix sid %v +  ", ln.Key, e.PrefixAttrTLVs.LSPrefixSID)
 
 		obj := srObject{
 			PrefixAttrTLVs: e.PrefixAttrTLVs,
 		}
 
-		if _, err := a.lsnodeExt.UpdateDocument(ctx, nl.Key, &obj); err != nil {
+		if _, err := a.igpNode.UpdateDocument(ctx, nl.Key, &obj); err != nil {
 			if !driver.IsConflict(err) {
 				return err
 			}
@@ -97,8 +97,8 @@ func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e messa
 	return nil
 }
 
-// Find and add ls_node entries to the ls_node_extended collection
-func (a *arangoDB) processLSNodeExt(ctx context.Context, key string, e *message.LSNode) error {
+// Find and add ls_node entries to the igp_node collection
+func (a *arangoDB) processIgpNode(ctx context.Context, key string, e *message.LSNode) error {
 	if e.ProtocolID == base.BGP {
 		// EPE Case cannot be processed because LS Node collection does not have BGP routers
 		return nil
@@ -111,7 +111,7 @@ func (a *arangoDB) processLSNodeExt(ctx context.Context, key string, e *message.
 		return err
 	}
 	defer ncursor.Close()
-	var sn LSNodeExt
+	var sn igpNode
 	ns, err := ncursor.ReadDocument(ctx, &sn)
 	if err != nil {
 		if !driver.IsNoMoreDocuments(err) {
@@ -119,8 +119,8 @@ func (a *arangoDB) processLSNodeExt(ctx context.Context, key string, e *message.
 		}
 	}
 
-	if _, err := a.lsnodeExt.CreateDocument(ctx, &sn); err != nil {
-		glog.Infof("adding ls_node_extended: %s with area_id %s ", sn.Key, e.AreaID)
+	if _, err := a.igpNode.CreateDocument(ctx, &sn); err != nil {
+		glog.Infof("adding igp_node: %s with area_id %s ", sn.Key, e.AreaID)
 		if !driver.IsConflict(err) {
 			return err
 		}
@@ -130,14 +130,14 @@ func (a *arangoDB) processLSNodeExt(ctx context.Context, key string, e *message.
 			}
 		}
 		// The document already exists, updating it with the latest info
-		if _, err := a.lsnodeExt.UpdateDocument(ctx, ns.Key, e); err != nil {
+		if _, err := a.igpNode.UpdateDocument(ctx, ns.Key, e); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	if err := a.processLSNodeExt(ctx, ns.Key, e); err != nil {
-		glog.Errorf("Failed to process ls_node_extended %s with error: %+v", ns.Key, err)
+	if err := a.processIgpNode(ctx, ns.Key, e); err != nil {
+		glog.Errorf("Failed to process igp_node %s with error: %+v", ns.Key, err)
 	}
 
 	if err := a.processIgpDomain(ctx, ns.Key, e); err != nil {
@@ -148,7 +148,7 @@ func (a *arangoDB) processLSNodeExt(ctx context.Context, key string, e *message.
 	return nil
 }
 
-// Find sr-mpls prefix sids and add them to newly added node ls_node_extended collection
+// Find sr-mpls prefix sids and add them to newly added node igp_node collection
 func (a *arangoDB) findPrefixSID(ctx context.Context, key string, e *message.LSNode) error {
 	query := "for l in " + a.lsprefix.Name() +
 		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\"" +
@@ -169,11 +169,11 @@ func (a *arangoDB) findPrefixSID(ctx context.Context, key string, e *message.LSN
 	obj := srObject{
 		PrefixAttrTLVs: lp.PrefixAttrTLVs,
 	}
-	if _, err := a.lsnodeExt.UpdateDocument(ctx, e.Key, &obj); err != nil {
+	if _, err := a.igpNode.UpdateDocument(ctx, e.Key, &obj); err != nil {
 		glog.V(5).Infof("adding prefix sid: %s ", pl.Key)
 		return err
 	}
-	if err := a.dedupeLSNodeExt(); err != nil {
+	if err := a.dedupeIgpNode(); err != nil {
 		if err != nil {
 			return err
 		}
@@ -182,13 +182,13 @@ func (a *arangoDB) findPrefixSID(ctx context.Context, key string, e *message.LSN
 }
 
 // BGP-LS generates a level-1 and a level-2 entry for level-1-2 nodes
-// remove duplicate entries in the lsnodeExt collection
-func (a *arangoDB) dedupeLSNodeExt() error {
+// remove duplicate entries in the igp_node collection
+func (a *arangoDB) dedupeIgpNode() error {
 	ctx := context.TODO()
-	dup_query := "LET duplicates = ( FOR d IN " + a.lsnodeExt.Name() +
+	dup_query := "LET duplicates = ( FOR d IN " + a.igpNode.Name() +
 		" COLLECT id = d.igp_router_id, domain = d.domain_id WITH COUNT INTO count " +
 		" FILTER count > 1 RETURN { id: id, domain: domain, count: count }) " +
-		"FOR d IN duplicates FOR m IN ls_node_extended " +
+		"FOR d IN duplicates FOR m IN igp_node " +
 		"FILTER d.id == m.igp_router_id filter d.domain == m.domain_id RETURN m "
 	pcursor, err := a.db.Query(ctx, dup_query, nil)
 	glog.Infof("dedup query: %+v", dup_query)
@@ -210,15 +210,15 @@ func (a *arangoDB) dedupeLSNodeExt() error {
 
 		if doc.ProtocolID == 1 {
 			glog.Infof("remove level-1 duplicate node: %s + igp id: %s protocol id: %v +  ", doc.Key, doc.IGPRouterID, doc.ProtocolID)
-			if _, err := a.lsnodeExt.RemoveDocument(ctx, doc.Key); err != nil {
+			if _, err := a.igpNode.RemoveDocument(ctx, doc.Key); err != nil {
 				if !driver.IsConflict(err) {
 					return err
 				}
 			}
 		}
 		if doc.ProtocolID == 2 {
-			update_query := "for l in " + a.lsnodeExt.Name() + " filter l._key == " + "\"" + doc.Key + "\"" +
-				" UPDATE l with { protocol: " + "\"" + "ISIS Level 1-2" + "\"" + " } in " + a.lsnodeExt.Name() + ""
+			update_query := "for l in " + a.igpNode.Name() + " filter l._key == " + "\"" + doc.Key + "\"" +
+				" UPDATE l with { protocol: " + "\"" + "ISIS Level 1-2" + "\"" + " } in " + a.igpNode.Name() + ""
 			cursor, err := a.db.Query(ctx, update_query, nil)
 			glog.Infof("update query: %s ", update_query)
 			if err != nil {
@@ -232,7 +232,7 @@ func (a *arangoDB) dedupeLSNodeExt() error {
 
 // Nov 10 2024 - find ipv6 lsnode's ipv4 bgp router-id
 func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.PeerStateChange) error {
-	query := "for l in  " + a.lsnodeExt.Name() +
+	query := "for l in  " + a.igpNode.Name() +
 		" filter l.router_id == " + "\"" + e.RemoteIP + "\""
 	query += " return l"
 	pcursor, err := a.db.Query(ctx, query, nil)
@@ -241,7 +241,7 @@ func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.P
 	}
 	defer pcursor.Close()
 	for {
-		var ln LSNodeExt
+		var ln igpNode
 		nl, err := pcursor.ReadDocument(ctx, &ln)
 		if err != nil {
 			if !driver.IsNoMoreDocuments(err) {
@@ -249,13 +249,13 @@ func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.P
 			}
 			break
 		}
-		glog.Infof("ls_node_extended: %s + peer %v +  ", ln.Key, e.RemoteBGPID)
+		glog.Infof("igp_node: %s + peer %v +  ", ln.Key, e.RemoteBGPID)
 
 		obj := peerObject{
 			BGPRouterID: e.RemoteBGPID,
 		}
 
-		if _, err := a.lsnodeExt.UpdateDocument(ctx, nl.Key, &obj); err != nil {
+		if _, err := a.igpNode.UpdateDocument(ctx, nl.Key, &obj); err != nil {
 			if !driver.IsConflict(err) {
 				return err
 			}
@@ -264,9 +264,9 @@ func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.P
 	return nil
 }
 
-// processLSNodeExtRemoval removes records from the sn_node collection which are referring to deleted LSNode
-func (a *arangoDB) processLSNodeExtRemoval(ctx context.Context, key string) error {
-	query := "FOR d IN " + a.lsnodeExt.Name() +
+// processIgpNodeRemoval removes records from the igp_node collection which are referring to deleted LSNode
+func (a *arangoDB) processIgpNodeRemoval(ctx context.Context, key string) error {
+	query := "FOR d IN " + a.igpNode.Name() +
 		" filter d._key == " + "\"" + key + "\""
 	query += " return d"
 	ncursor, err := a.db.Query(ctx, query, nil)
@@ -276,7 +276,7 @@ func (a *arangoDB) processLSNodeExtRemoval(ctx context.Context, key string) erro
 	defer ncursor.Close()
 
 	for {
-		var nm LSNodeExt
+		var nm igpNode
 		m, err := ncursor.ReadDocument(ctx, &nm)
 		if err != nil {
 			if !driver.IsNoMoreDocuments(err) {
@@ -284,7 +284,7 @@ func (a *arangoDB) processLSNodeExtRemoval(ctx context.Context, key string) erro
 			}
 			break
 		}
-		if _, err := a.lsnodeExt.RemoveDocument(ctx, m.ID.Key()); err != nil {
+		if _, err := a.igpNode.RemoveDocument(ctx, m.ID.Key()); err != nil {
 			if !driver.IsNotFound(err) {
 				return err
 			}
@@ -300,7 +300,7 @@ func (a *arangoDB) processIgpDomain(ctx context.Context, key string, e *message.
 		// EPE Case cannot be processed because LS Node collection does not have BGP routers
 		return nil
 	}
-	query := "for l in ls_node_extended insert " +
+	query := "for l in igp_node insert " +
 		"{ _key: CONCAT_SEPARATOR(" + "\"_\", l.protocol_id, l.domain_id, l.asn), " +
 		"asn: l.asn, protocol_id: l.protocol_id, domain_id: l.domain_id, protocol: l.protocol } " +
 		"into igp_domain OPTIONS { ignoreErrors: true } "
@@ -310,7 +310,7 @@ func (a *arangoDB) processIgpDomain(ctx context.Context, key string, e *message.
 		return err
 	}
 	defer ncursor.Close()
-	var sn LSNodeExt
+	var sn igpNode
 	ns, err := ncursor.ReadDocument(ctx, &sn)
 	if err != nil {
 		if !driver.IsNoMoreDocuments(err) {
