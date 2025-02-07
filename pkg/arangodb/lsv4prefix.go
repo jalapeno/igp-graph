@@ -93,7 +93,8 @@ func (a *arangoDB) createigpv4PrefixEdgeObject(ctx context.Context, l *message.L
 	if l.MTID != nil {
 		mtid = int(l.MTID.MTID)
 	}
-	ne := lsTopologyObject{
+	// Node to Prefix direction
+	nodeToPrefix := lsTopologyObject{
 		Key:            l.Key,
 		From:           ln.ID,
 		To:             l.ID,
@@ -109,13 +110,45 @@ func (a *arangoDB) createigpv4PrefixEdgeObject(ctx context.Context, l *message.L
 		PrefixMetric:   l.PrefixMetric,
 		PrefixAttrTLVs: l.PrefixAttrTLVs,
 	}
-	if _, err := a.graphv4.CreateDocument(ctx, &ne); err != nil {
-		if !driver.IsConflict(err) {
-			return err
-		}
-		// The document already exists, updating it with the latest info
-		if _, err := a.graphv4.UpdateDocument(ctx, ne.Key, &ne); err != nil {
-			return err
+	// if _, err := a.graphv4.CreateDocument(ctx, &ne); err != nil {
+	// 	if !driver.IsConflict(err) {
+	// 		return err
+	// 	}
+	// 	// The document already exists, updating it with the latest info
+	// 	if _, err := a.graphv4.UpdateDocument(ctx, ne.Key, &ne); err != nil {
+	// 		return err
+	// 	}
+	// }
+
+	// Prefix to Node direction
+	glog.Infof("creating prefix edge object from prefix: %s to node: %s ", l.Key, ln.Key)
+	prefixToNode := lsTopologyObject{
+		Key:            l.Key + "_to_" + ln.Key, // Changed key format
+		From:           l.ID,
+		To:             ln.ID,
+		Link:           l.Key,
+		ProtocolID:     l.ProtocolID,
+		DomainID:       l.DomainID,
+		MTID:           uint16(mtid),
+		AreaID:         l.AreaID,
+		Protocol:       l.Protocol,
+		LocalNodeASN:   ln.ASN,
+		Prefix:         l.Prefix,
+		PrefixLen:      l.PrefixLen,
+		PrefixMetric:   l.PrefixMetric,
+		PrefixAttrTLVs: l.PrefixAttrTLVs,
+	}
+
+	// Create/Update both directions
+	for _, edge := range []*lsTopologyObject{&nodeToPrefix, &prefixToNode} {
+		if _, err := a.graphv4.CreateDocument(ctx, edge); err != nil {
+			if !driver.IsConflict(err) {
+				return err
+			}
+			// The document already exists, updating it with the latest info
+			if _, err := a.graphv4.UpdateDocument(ctx, edge.Key, edge); err != nil {
+				return err
+			}
 		}
 	}
 
