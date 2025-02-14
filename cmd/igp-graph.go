@@ -62,7 +62,6 @@ func init() {
 	flag.StringVar(&lslink, "ls_link", "ls_link", "ls_link Collection name, default \"ls_link\"")
 	flag.StringVar(&lssrv6sid, "ls_srv6_sid", "ls_srv6_sid", "ls_srv6_sid Collection name, default: \"ls_srv6_sid\"")
 	flag.StringVar(&lsnode, "ls_node", "ls_node", "ls_node Collection name, default \"ls_node\"")
-	//flag.StringVar(&lsnodeExt, "ls_node_extended", "ls_node_extended", "ls_node_extended Collection name, default \"ls_node_extended\"")
 	flag.StringVar(&igpDomain, "igp_domain", "igp_domain", "igp_domain Collection name, default \"igp_domain\"")
 	flag.StringVar(&igpNode, "igp_node", "igp_node", "igp_node Collection name, default \"igp_node\"")
 	flag.StringVar(&igpv4Graph, "igpv4_graph", "igpv4_graph", "igpv4_graph Collection name, default \"igpv4_graph\"")
