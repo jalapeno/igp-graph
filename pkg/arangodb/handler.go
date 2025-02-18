@@ -15,171 +15,150 @@ import (
 
 func (a *arangoDB) lsNodeHandler(obj *notifier.EventMessage) error {
 	ctx := context.TODO()
-	if obj == nil {
-		return fmt.Errorf("event message is nil")
-	}
-	// Check if Collection encoded in ls_node message ID exists
-	//glog.Infof("handler received: %+v", obj)
-	c := strings.Split(obj.ID, "/")[0]
-	if strings.Compare(c, a.lsnode.Name()) != 0 {
-		return fmt.Errorf("configured collection name %s and received in event collection name %s do not match", a.lsnode.Name(), c)
-	}
-	//glog.Infof("Processing action: %s for key: %s ID: %s", obj.Action, obj.Key, obj.ID)
-	var o message.LSNode
-	_, err := a.lsnode.ReadDocument(ctx, obj.Key, &o)
-	if err != nil {
-		// In case of a LSNode removal notification, reading it will return Not Found error
-		if !driver.IsNotFound(err) {
-			return fmt.Errorf("failed to read existing document %s with error: %+v", obj.Key, err)
-		}
-		// If operation matches to "del" then it is confirmed delete operation, otherwise return error
-		if obj.Action != "del" {
-			return fmt.Errorf("document %s not found but Action is not \"del\", possible stale event", obj.Key)
-		}
-		return a.processIgpNodeRemoval(ctx, obj.Key)
-	}
-	switch obj.Action {
-	case "add":
-		if err := a.processIgpNode(ctx, obj.Key, &o); err != nil {
-			return fmt.Errorf("failed to process action %s for vertex %s with error: %+v", obj.Action, obj.Key, err)
-		}
-	default:
-		// NOOP for update
+	if err := a.validateEventMessage(obj, a.lsnode.Name()); err != nil {
+		return err
 	}
 
+	var node message.LSNode
+	_, err := a.lsnode.ReadDocument(ctx, obj.Key, &node)
+
+	switch {
+	case driver.IsNotFoundGeneral(err) && obj.Action == "del":
+		return a.processIgpNodeRemoval(ctx, obj.Key)
+	case driver.IsNotFoundGeneral(err):
+		return fmt.Errorf("document %s not found but Action is %s, possible stale event",
+			obj.Key, obj.Action)
+	case err != nil:
+		return fmt.Errorf("failed to read document %s: %w", obj.Key, err)
+	}
+
+	switch obj.Action {
+	case "add", "update":
+		if err := a.processIgpNode(ctx, obj.Key, &node); err != nil {
+			return fmt.Errorf("failed to process %s for vertex %s: %w",
+				obj.Action, obj.Key, err)
+		}
+	}
+
+	glog.V(5).Infof("Successfully processed %s action for node %s", obj.Action, obj.Key)
 	return nil
 }
 
 func (a *arangoDB) lsSRv6SIDHandler(obj *notifier.EventMessage) error {
 	ctx := context.TODO()
-	if obj == nil {
-		return fmt.Errorf("event message is nil")
-	}
-	// Check if Collection encoded in ls_srv6_sid message ID exists
-	c := strings.Split(obj.ID, "/")[0]
-	if strings.Compare(c, a.lssrv6sid.Name()) != 0 {
-		return fmt.Errorf("configured collection name %s and received in event collection name %s do not match", a.lssrv6sid.Name(), c)
-	}
-	glog.V(6).Infof("Processing action: %s for key: %s ID: %s", obj.Action, obj.Key, obj.ID)
-	var o message.LSSRv6SID
-	_, err := a.lssrv6sid.ReadDocument(ctx, obj.Key, &o)
-	if err != nil {
-		// In case of a ls_srv6_sid removal notification, reading it will return Not Found error
-		if !driver.IsNotFound(err) {
-			return fmt.Errorf("failed to read existing document %s with error: %+v", obj.Key, err)
-		}
-		// If operation matches to "del" then it is confirmed delete operation, otherwise return error
-		if obj.Action != "del" {
-			return fmt.Errorf("document %s not found but Action is not \"del\", possible stale event", obj.Key)
-		}
-		glog.V(6).Infof("SRv6 SID deleted: %s for igp_node key: %s ", obj.Action, obj.Key)
-		return nil
-	}
-	switch obj.Action {
-	case "add":
-		if err := a.processLSSRv6SID(ctx, obj.Key, obj.ID, &o); err != nil {
-			return fmt.Errorf("failed to process action %s for edge %s with error: %+v", obj.Action, obj.Key, err)
-		}
-	default:
-		// NOOP
+	if err := a.validateEventMessage(obj, a.lssrv6sid.Name()); err != nil {
+		return err
 	}
 
+	var sid message.LSSRv6SID
+	_, err := a.lssrv6sid.ReadDocument(ctx, obj.Key, &sid)
+
+	switch {
+	case driver.IsNotFoundGeneral(err) && obj.Action == "del":
+		glog.V(6).Infof("SRv6 SID deleted: %s for igp_node key: %s", obj.Action, obj.Key)
+		return nil
+	case driver.IsNotFoundGeneral(err):
+		return fmt.Errorf("document %s not found but Action is %s, possible stale event",
+			obj.Key, obj.Action)
+	case err != nil:
+		return fmt.Errorf("failed to read document %s: %w", obj.Key, err)
+	}
+
+	switch obj.Action {
+	case "add":
+		if err := a.processLSSRv6SID(ctx, obj.Key, obj.ID, &sid); err != nil {
+			return fmt.Errorf("failed to process %s for edge %s: %w",
+				obj.Action, obj.Key, err)
+		}
+	}
+
+	glog.V(6).Infof("Successfully processed %s action for SRv6 SID %s", obj.Action, obj.Key)
 	return nil
 }
 
 func (a *arangoDB) lsPrefixHandler(obj *kafkanotifier.EventMessage) error {
 	ctx := context.TODO()
-	if obj == nil {
-		return fmt.Errorf("event message is nil")
+	if err := a.validateEventMessage(obj, a.lsprefix.Name()); err != nil {
+		return err
 	}
-	// Check if Collection encoded in ls_prefix message ID exists
-	c := strings.Split(obj.ID, "/")[0]
-	if strings.Compare(c, a.lsprefix.Name()) != 0 {
-		return fmt.Errorf("configured collection name %s and received in event collection name %s do not match", a.lsprefix.Name(), c)
-	}
-	//glog.V(5).Infof("Processing action: %s for key: %s ID: %s", obj.Action, obj.Key, obj.ID)
-	var o message.LSPrefix
-	_, err := a.lsprefix.ReadDocument(ctx, obj.Key, &o)
-	if err != nil {
-		// In case of a ls_link removal notification, reading it will return Not Found error
-		if !driver.IsNotFound(err) {
-			return fmt.Errorf("failed to read existing document %s with error: %+v", obj.Key, err)
-		}
-		// If operation matches to "del" then it is confirmed delete operation, otherwise return error
-		if obj.Action != "del" {
-			return fmt.Errorf("document %s not found but Action is not \"del\", possible stale event", obj.Key)
-		}
 
-		// Detect IPv6 link by checking for ":" in the key
+	var prefix message.LSPrefix
+	_, err := a.lsprefix.ReadDocument(ctx, obj.Key, &prefix)
+
+	switch {
+	case driver.IsNotFoundGeneral(err) && obj.Action == "del":
 		if strings.Contains(obj.Key, ":") {
 			return a.processv6PrefixRemoval(ctx, obj.Key, obj.Action)
 		}
-
-		err := a.processPrefixRemoval(ctx, obj.Key, obj.Action)
-		if err != nil {
-			return err
-		}
-		// write event into ls_node_edge topic
-		// a.notifier.EventNotification(obj)
-		// return nil
+		return a.processPrefixRemoval(ctx, obj.Key, obj.Action)
+	case driver.IsNotFoundGeneral(err):
+		return fmt.Errorf("document %s not found but Action is %s, possible stale event",
+			obj.Key, obj.Action)
+	case err != nil:
+		return fmt.Errorf("failed to read document %s: %w", obj.Key, err)
 	}
+
 	switch obj.Action {
-	case "add":
-		fallthrough
-	case "update":
-		if err := a.processPrefixSID(ctx, obj.Key, obj.ID, o); err != nil {
-			return fmt.Errorf("failed to process action %s for vertex %s with error: %+v", obj.Action, obj.Key, err)
+	case "add", "update":
+		if err := a.processPrefixSID(ctx, obj.Key, obj.ID, prefix); err != nil {
+			return fmt.Errorf("failed to process %s for vertex %s: %w",
+				obj.Action, obj.Key, err)
 		}
-		if err := a.processLSPrefixEdge(ctx, obj.Key, &o); err != nil {
-			return fmt.Errorf("failed to process action %s for edge %s with error: %+v", obj.Action, obj.Key, err)
+		if err := a.processLSPrefixEdge(ctx, obj.Key, &prefix); err != nil {
+			return fmt.Errorf("failed to process %s for edge %s: %w",
+				obj.Action, obj.Key, err)
 		}
 	}
 
+	glog.V(5).Infof("Successfully processed %s action for prefix %s", obj.Action, obj.Key)
 	return nil
 }
 
 func (a *arangoDB) lsLinkHandler(obj *kafkanotifier.EventMessage) error {
 	ctx := context.TODO()
-	if obj == nil {
-		return fmt.Errorf("event message is nil")
+	if err := a.validateEventMessage(obj, a.lslink.Name()); err != nil {
+		return err
 	}
-	//glog.Infof("Processing eventmessage: %+v", obj)
-	// Check if Collection encoded in ls_link message ID exists
-	c := strings.Split(obj.ID, "/")[0]
-	if strings.Compare(c, a.lslink.Name()) != 0 {
-		return fmt.Errorf("configured collection name %s and received in event collection name %s do not match", a.lslink.Name(), c)
-	}
-	var o message.LSLink
-	_, err := a.lslink.ReadDocument(ctx, obj.Key, &o)
-	if err != nil {
-		// In case of a ls_link removal notification, reading it will return Not Found error
-		if !driver.IsNotFound(err) {
-			return fmt.Errorf("failed to read existing document %s with error: %+v", obj.Key, err)
-		}
-		// If operation matches to "del" then it is confirmed delete operation, otherwise return error
-		if obj.Action != "del" {
-			return fmt.Errorf("document %s not found but Action is not \"del\", possible stale event", obj.Key)
-		}
 
-		// Detect IPv6 link by checking for ":" in the key
+	var link message.LSLink
+	_, err := a.lslink.ReadDocument(ctx, obj.Key, &link)
+
+	switch {
+	case driver.IsNotFoundGeneral(err) && obj.Action == "del":
 		if strings.Contains(obj.Key, ":") {
 			return a.processv6LinkRemoval(ctx, obj.Key, obj.Action)
 		}
-
 		return a.processLinkRemoval(ctx, obj.Key, obj.Action)
+	case driver.IsNotFoundGeneral(err):
+		return fmt.Errorf("document %s not found but Action is %s, possible stale event",
+			obj.Key, obj.Action)
+	case err != nil:
+		return fmt.Errorf("failed to read document %s: %w", obj.Key, err)
 	}
+
 	switch obj.Action {
-	case "add":
-		fallthrough
-	case "update":
-		if err := a.processLSLinkEdge(ctx, obj.Key, &o); err != nil {
-			return fmt.Errorf("failed to process action %s for edge %s with error: %+v", obj.Action, obj.Key, err)
+	case "add", "update":
+		if err := a.processLSLinkEdge(ctx, obj.Key, &link); err != nil {
+			return fmt.Errorf("failed to process %s for edge %s: %w",
+				obj.Action, obj.Key, err)
 		}
 	}
-	//glog.V(5).Infof("Complete processing action: %s for key: %s ID: %s", obj.Action, obj.Key, obj.ID)
 
-	// write event into ls_topoogy_v4 topic
-	//a.notifier.EventNotification(obj)
+	glog.V(5).Infof("Successfully processed %s action for link %s", obj.Action, obj.Key)
+	return nil
+}
+
+// Common validation function
+func (a *arangoDB) validateEventMessage(obj *notifier.EventMessage, expectedCollection string) error {
+	if obj == nil {
+		return fmt.Errorf("event message is nil")
+	}
+
+	collection := strings.Split(obj.ID, "/")[0]
+	if collection != expectedCollection {
+		return fmt.Errorf("collection name mismatch: expected %s, got %s",
+			expectedCollection, collection)
+	}
 
 	return nil
 }

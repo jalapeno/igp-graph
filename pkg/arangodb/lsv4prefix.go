@@ -110,15 +110,6 @@ func (a *arangoDB) createigpv4PrefixEdgeObject(ctx context.Context, l *message.L
 		PrefixMetric:   l.PrefixMetric,
 		PrefixAttrTLVs: l.PrefixAttrTLVs,
 	}
-	// if _, err := a.graphv4.CreateDocument(ctx, &ne); err != nil {
-	// 	if !driver.IsConflict(err) {
-	// 		return err
-	// 	}
-	// 	// The document already exists, updating it with the latest info
-	// 	if _, err := a.graphv4.UpdateDocument(ctx, ne.Key, &ne); err != nil {
-	// 		return err
-	// 	}
-	// }
 
 	// Prefix to Node direction
 	glog.Infof("creating prefix edge object from prefix: %s to node: %s ", l.Key, ln.Key)
