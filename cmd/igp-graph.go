@@ -37,7 +37,6 @@ var (
 	lslink     string
 	lssrv6sid  string
 	lsnode     string
-	//lsnodeExt  string
 	igpDomain  string
 	igpNode    string
 	igpv4Graph string
@@ -108,9 +107,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	dbSrv, err := arangodb.NewDBSrvClient(dbSrvAddr, dbUser, dbPass, dbName, lsprefix, lslink, lssrv6sid, lsnode,
-		//lsnodeExt,
-		igpDomain, igpNode, igpv4Graph, igpv6Graph, notifier)
+	dbSrv, err := arangodb.NewDBSrvClient(dbSrvAddr, dbUser, dbPass, dbName, lsprefix, lslink,
+		lssrv6sid, lsnode, igpDomain, igpNode, igpv4Graph, igpv6Graph, notifier)
 	if err != nil {
 		glog.Errorf("failed to initialize databse client with error: %+v", err)
 		os.Exit(1)
