@@ -94,7 +94,7 @@ func (a *arangoDB) createigpv6PrefixEdgeObject(ctx context.Context, l *message.L
 
 	// Node to Prefix direction
 	//glog.Infof("creating prefix edge object from node %s to prefix: %s ", ln.Key, l.Key)
-	nodeToPrefix := lsTopologyObject{
+	nodeToPrefix := lsGraphObject{
 		Key:            ln.Key + "_to_" + l.Key, // Changed key format
 		From:           ln.ID,
 		To:             l.ID,
@@ -113,7 +113,7 @@ func (a *arangoDB) createigpv6PrefixEdgeObject(ctx context.Context, l *message.L
 
 	// Prefix to Node direction
 	//glog.Infof("creating prefix edge object from prefix: %s to node: %s ", l.Key, ln.Key)
-	prefixToNode := lsTopologyObject{
+	prefixToNode := lsGraphObject{
 		Key:            l.Key + "_to_" + ln.Key, // Changed key format
 		From:           l.ID,
 		To:             ln.ID,
@@ -131,7 +131,7 @@ func (a *arangoDB) createigpv6PrefixEdgeObject(ctx context.Context, l *message.L
 	}
 
 	// Create/Update both directions
-	for _, edge := range []*lsTopologyObject{&nodeToPrefix, &prefixToNode} {
+	for _, edge := range []*lsGraphObject{&nodeToPrefix, &prefixToNode} {
 		if _, err := a.graphv6.CreateDocument(ctx, edge); err != nil {
 			if !driver.IsConflict(err) {
 				return err

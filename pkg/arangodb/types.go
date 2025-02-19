@@ -71,7 +71,7 @@ type peerObject struct {
 	BGPRouterID string `json:"bgp_router_id,omitempty"`
 }
 
-type lsTopologyObject struct {
+type lsGraphObject struct {
 	Key                   string                `json:"_key"`
 	From                  string                `json:"_from"`
 	To                    string                `json:"_to"`

@@ -254,7 +254,6 @@ func (a *arangoDB) createIGPDomains(ctx context.Context) error {
 		return err
 	}
 	defer cursor.Close()
-	glog.Infof("completed creating IGP domains")
 	return nil
 }
 
