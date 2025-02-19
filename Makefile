@@ -1,5 +1,5 @@
 REGISTRY_NAME?=docker.io/iejalapeno
-IMAGE_VERSION?=20250218
+IMAGE_VERSION?=latest
 .PHONY: all igp-graph container push clean test
 
 ifdef V
