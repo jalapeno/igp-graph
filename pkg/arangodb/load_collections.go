@@ -215,6 +215,7 @@ func (a *arangoDB) loadSRv6SIDs(ctx context.Context) error {
 
 func (a *arangoDB) processIBGPv6Peering(ctx context.Context) error {
 	// add ipv6 iBGP peering address and ipv4 bgp router-id
+	glog.Infof("processing IBGPv6 peering")
 	ibgp6_query := fmt.Sprintf(`
 		FOR s IN peer 
 		FILTER s.remote_ip LIKE "%%:%%"
@@ -237,40 +238,23 @@ func (a *arangoDB) processIBGPv6Peering(ctx context.Context) error {
 			glog.Errorf("Failed to process ibgp peering %s with error: %+v", p.ID, err)
 		}
 	}
-
+	glog.Infof("completed processing IBGPv6 peering")
 	return nil
 }
 
 func (a *arangoDB) createIGPDomains(ctx context.Context) error {
 	// create igp_domain collection - useful in scaled multi-domain environments
-	igpdomain_query := fmt.Sprintf(`
-		FOR l IN %s
-		INSERT { 
-			_key: CONCAT_SEPARATOR("_", l.protocol_id, l.domain_id, l.asn),
-			asn: l.asn,
-			protocol_id: l.protocol_id,
-			domain_id: l.domain_id,
-			protocol: l.protocol 
-		} INTO %s 
-		OPTIONS { ignoreErrors: true }
-		RETURN l`,
-		a.igpNode.Name(),
-		a.igpDomain.Name(),
-	)
-
+	glog.Infof("creating IGP domains")
+	igpdomain_query := "for l in igp_node insert " +
+		"{ _key: CONCAT_SEPARATOR(" + "\"_\", l.protocol_id, l.domain_id, l.asn), " +
+		"asn: l.asn, protocol_id: l.protocol_id, domain_id: l.domain_id, protocol: l.protocol } " +
+		"into igp_domain OPTIONS { ignoreErrors: true } return l"
 	cursor, err := a.db.Query(ctx, igpdomain_query, nil)
 	if err != nil {
-		return fmt.Errorf("failed to execute IGP domains query: %w", err)
+		return err
 	}
 	defer cursor.Close()
-
-	// Wait for all documents to be processed
-	for cursor.HasMore() {
-		if _, err := cursor.ReadDocument(ctx, nil); err != nil {
-			return fmt.Errorf("error reading cursor: %w", err)
-		}
-	}
-
+	glog.Infof("completed creating IGP domains")
 	return nil
 }
 

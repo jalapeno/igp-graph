@@ -29,7 +29,7 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 		}
 	}
 	glog.Infof("igp_node %s + srv6sid %s", ns.Key, e.SRv6SID)
-	glog.Infof("existing sids: %+v", &sn.SIDS)
+	//glog.Infof("existing sids: %+v", &sn.SIDS)
 
 	newsid := SID{
 		SRv6SID:              e.SRv6SID,
@@ -52,8 +52,6 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 		srn := igpNode{
 			SIDS: sn.SIDS,
 		}
-		// glog.Infof("appending sid %+v ", e.Key)
-
 		if _, err := a.igpNode.UpdateDocument(ctx, ns.Key, &srn); err != nil {
 			if !driver.IsConflict(err) {
 				return err
@@ -233,7 +231,7 @@ func (a *arangoDB) dedupeIgpNode() error {
 // Nov 10 2024 - find ipv6 lsnode's ipv4 bgp router-id
 func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.PeerStateChange) error {
 	query := "for l in  " + a.igpNode.Name() +
-		" filter l.router_id == " + "\"" + e.RemoteIP + "\""
+		" filter l.router_id == " + "\"" + e.RemoteBGPID + "\""
 	query += " return l"
 	pcursor, err := a.db.Query(ctx, query, nil)
 	if err != nil {
@@ -249,12 +247,12 @@ func (a *arangoDB) processbgp6(ctx context.Context, key, id string, e *message.P
 			}
 			break
 		}
-		glog.Infof("igp_node: %s + peer %v +  ", ln.Key, e.RemoteBGPID)
+		//glog.Infof("igp_node: %s + peer %v +  ", ln.Key, e.RemoteBGPID)
 
 		obj := peerObject{
 			BGPRouterID: e.RemoteBGPID,
 		}
-
+		glog.Infof("igp_node: %s + peer %v +  object: %+v", nl.Key, e.RemoteBGPID, obj)
 		if _, err := a.igpNode.UpdateDocument(ctx, nl.Key, &obj); err != nil {
 			if !driver.IsConflict(err) {
 				return err
