@@ -109,7 +109,7 @@ func (a *arangoDB) createv6EdgeObject(ctx context.Context, l *message.LSLink, ln
 	if l.MTID != nil {
 		mtid = int(l.MTID.MTID)
 	}
-	ne := lsTopologyObject{
+	ne := lsGraphObject{
 		Key:                   l.Key,
 		From:                  ln.ID,
 		To:                    rn.ID,

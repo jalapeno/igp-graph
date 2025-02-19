@@ -80,38 +80,56 @@ func (k *kafka) Stop() error {
 
 func (k *kafka) topicReader(topicType dbclient.CollectionType, topicName string) {
 	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
 	for {
-		partitions, _ := k.master.Partitions(topicName)
-		// this only consumes partition no 1, you would probably want to consume all partitions
-		consumer, err := k.master.ConsumePartition(topicName, partitions[0], sarama.OffsetOldest)
-		if nil != err {
-			glog.Infof("Consumer error: %+v", err)
+		partitions, err := k.master.Partitions(topicName)
+		if err != nil {
+			glog.Errorf("Failed to get partitions for topic %s: %v", topicName, err)
 			select {
 			case <-ticker.C:
+				continue
 			case <-k.stopCh:
 				return
 			}
-			continue
 		}
-		glog.Infof("Starting Kafka reader for topic: %s topicType: %d", topicName, topicType)
-		for {
-			select {
-			case msg := <-consumer.Messages():
-				if msg == nil {
-					continue
-				}
-				//glog.Infof("event msg received %+v for topic %+v", msg, topicName)
-				if err := k.db.StoreMessage(topicType, msg.Value); err != nil {
-					glog.Errorf("failed to process a message from topic %s with error: %+v", topicName, err)
-				}
-			case consumerError := <-consumer.Errors():
-				if consumerError == nil {
-					break
-				}
-				glog.Errorf("error %+v for topic: %s, partition: %s ", consumerError.Err, string(consumerError.Topic), string(consumerError.Partition))
-			case <-k.stopCh:
-				return
+
+		// Consider consuming from all partitions
+		for _, partition := range partitions {
+			consumer, err := k.master.ConsumePartition(topicName, partition, sarama.OffsetOldest)
+			if err != nil {
+				glog.Errorf("Failed to create consumer for topic %s partition %d: %v",
+					topicName, partition, err)
+				continue
 			}
+
+			go k.handlePartition(consumer, topicType, topicName)
+		}
+
+		// Wait for stop signal
+		<-k.stopCh
+		return
+	}
+}
+
+func (k *kafka) handlePartition(consumer sarama.PartitionConsumer, topicType dbclient.CollectionType, topicName string) {
+	defer consumer.Close()
+
+	for {
+		select {
+		case msg := <-consumer.Messages():
+			if msg == nil {
+				continue
+			}
+			if err := k.db.StoreMessage(topicType, msg.Value); err != nil {
+				glog.Errorf("Failed to process message from topic %s: %v", topicName, err)
+			}
+		case err := <-consumer.Errors():
+			if err != nil {
+				glog.Errorf("Consumer error for topic %s: %v", topicName, err)
+			}
+		case <-k.stopCh:
+			return
 		}
 	}
 }

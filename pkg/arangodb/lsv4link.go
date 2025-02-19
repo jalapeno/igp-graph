@@ -19,7 +19,7 @@ func (a *arangoDB) processLSLinkEdge(ctx context.Context, key string, l *message
 	if l.MTID != nil {
 		return a.processigpv6LinkEdge(ctx, key, l)
 	}
-	glog.Infof("processEdge processing lslink: %s", l.ID)
+	//glog.Infof("processEdge processing lslink: %s", l.ID)
 	// get local node from ls_link entry
 	ln, err := a.getv4Node(ctx, l, true)
 	if err != nil {
@@ -108,7 +108,7 @@ func (a *arangoDB) createv4EdgeObject(ctx context.Context, l *message.LSLink, ln
 	if l.MTID != nil {
 		mtid = int(l.MTID.MTID)
 	}
-	ne := lsTopologyObject{
+	ne := lsGraphObject{
 		Key:                   l.Key,
 		From:                  ln.ID,
 		To:                    rn.ID,

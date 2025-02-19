@@ -8,13 +8,12 @@ import (
 )
 
 type duplicateNode struct {
-	Key         string `json:"_key,omitempty"`
-	DomainID    int64  `json:"domain_id"`
-	IGPRouterID string `json:"igp_router_id,omitempty"`
-	//AreaID      string       `json:"area_id"`
-	Protocol   string       `json:"protocol,omitempty"`
-	ProtocolID base.ProtoID `json:"protocol_id,omitempty"`
-	Name       string       `json:"name,omitempty"`
+	Key         string       `json:"_key,omitempty"`
+	DomainID    int64        `json:"domain_id"`
+	IGPRouterID string       `json:"igp_router_id,omitempty"`
+	Protocol    string       `json:"protocol,omitempty"`
+	ProtocolID  base.ProtoID `json:"protocol_id,omitempty"`
+	Name        string       `json:"name,omitempty"`
 }
 
 type srObject struct {
@@ -72,7 +71,7 @@ type peerObject struct {
 	BGPRouterID string `json:"bgp_router_id,omitempty"`
 }
 
-type lsTopologyObject struct {
+type lsGraphObject struct {
 	Key                   string                `json:"_key"`
 	From                  string                `json:"_from"`
 	To                    string                `json:"_to"`
